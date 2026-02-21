@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Estado extends Model
+{
+    protected $table = 'estados';
+
+    protected $fillable = [
+        'nombre',
+        'slug',
+    ];
+
+    public function ciudades()
+    {
+        return $this->hasMany(Ciudad::class, 'id_estado');
+    }
+}
