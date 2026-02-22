@@ -19,7 +19,7 @@ class AdminController extends Controller
         );
 
         if($validate->fails()){
-            return response()->json(['message' => 'Error al validar los datos', 'errors' => $validate->errors()->first()], 400);
+            return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
         $admin = Admin::where('correo', $request->correo)->first();
@@ -32,9 +32,9 @@ class AdminController extends Controller
             return response()->json(['message' => 'Contraseña incorrecta'], 401);
         }
 
-        $token = JWT::encode(['sub' => $admin->id, 'exp' => time() + 86400], config('jwt.secret_admin'), 'HS256');
+        $token = JWT::encode(['sub' => $admin->id, 'nombre' => $admin->nombre, 'rol' => $admin->rol, 'exp' => time() + 86400], config('jwt.secret_admin'), 'HS256');
 
-        return response()->json(['message' => 'Admin logueado exitosamente', 'admin' => $admin, 'token' => $token]);
+        return response()->json(['message' => 'Admin logueado exitosamente', 'data' => $admin, 'token' => $token]);
     }
 
     public function crear(Request $request)
@@ -49,7 +49,7 @@ class AdminController extends Controller
         );
 
         if($validate->fails()){
-            return response()->json(['message' => 'Error al validar los datos', 'errors' => $validate->errors()->first()], 400);
+            return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
         $admin = new Admin();
@@ -60,7 +60,7 @@ class AdminController extends Controller
         $admin->activo = 1;
         $admin->save();
 
-        return response()->json(['message' => 'Admin creado exitosamente', 'admin' => $admin]);
+        return response()->json(['message' => 'Admin creado exitosamente', 'data' => $admin]);
     }
 
     public function actualizar(Request $request)
@@ -76,7 +76,7 @@ class AdminController extends Controller
         );
 
         if($validate->fails()){
-            return response()->json(['message' => 'Error al validar los datos', 'errors' => $validate->errors()->first()], 400);
+            return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
         $admin = Admin::find($request->id);
@@ -103,7 +103,7 @@ class AdminController extends Controller
         );
 
         if($validate->fails()){
-            return response()->json(['message' => 'Error al validar los datos', 'errors' => $validate->errors()->first()], 400);
+            return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
         $admin = Admin::find($request->id);
@@ -121,7 +121,7 @@ class AdminController extends Controller
     public function listar(Request $request)
     {
         $admins = Admin::get();
-        return response()->json($admins);
+        return response()->json(['data' => $admins]);
     }
 
     public function restaurar(Request $request)
@@ -133,7 +133,7 @@ class AdminController extends Controller
         );
 
         if($validate->fails()){
-            return response()->json(['message' => 'Error al validar los datos', 'errors' => $validate->errors()->first()], 400);
+            return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
         $admin = Admin::find($request->id);

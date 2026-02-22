@@ -14,19 +14,24 @@ class Usuario extends Authenticatable
     protected $table = 'usuarios';
 
     protected $fillable = [
+        'nombre',
         'correo',
         'telefono',
         'pass',
+        'temp_pass',
         'id_plan_activo',
         'total_negocios',
         'total_items',
         'prioridad_cache',
+        'destacado_cache',
+        'destacado_titulo_cache',
         'max_alcance_visibilidad',
         'activo',
     ];
 
     protected $hidden = [
         'pass',
+        'temp_pass',
     ];
 
     protected $casts = [

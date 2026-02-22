@@ -12,3 +12,13 @@ Schedule::command('app:backup-database-to-s3 --retention-days=14')
     ->dailyAt('06:00')
     ->withoutOverlapping(180)
     ->runInBackground();
+
+Schedule::command('app:terminar-membresia')
+    ->dailyAt('03:00')
+    ->withoutOverlapping(180)
+    ->runInBackground();
+
+Schedule::command('app:enviar-recordatorio-pago')
+    ->dailyAt('12:00')
+    ->withoutOverlapping(180)
+    ->runInBackground();

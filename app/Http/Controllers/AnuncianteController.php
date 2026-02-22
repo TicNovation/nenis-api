@@ -14,7 +14,7 @@ class AnuncianteController extends Controller
     public function listar()
     {
         $anunciantes = Anunciante::all();
-        return response()->json($anunciantes, 200);
+        return response()->json(['data' => $anunciantes], 200);
     }
 
     /**
@@ -28,7 +28,7 @@ class AnuncianteController extends Controller
             return response()->json(['message' => 'Anunciante no encontrado'], 404);
         }
 
-        return response()->json($anunciante, 200);
+        return response()->json(['data' => $anunciante], 200);
     }
 
     /**
@@ -44,12 +44,12 @@ class AnuncianteController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 400);
+            return response()->json(['message' => $validator->errors()->first()], 400);
         }
 
         $anunciante = Anunciante::create($request->all());
 
-        return response()->json($anunciante, 201);
+        return response()->json(['data' => $anunciante], 201);
     }
 
     /**
@@ -71,12 +71,12 @@ class AnuncianteController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 400);
+            return response()->json(['message' => $validator->errors()->first()], 400);
         }
 
         $anunciante->update($request->all());
 
-        return response()->json($anunciante, 200);
+        return response()->json(['data' => $anunciante], 200);
     }
 
     /**

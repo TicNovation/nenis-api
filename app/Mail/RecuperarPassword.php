@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use MailerSend\LaravelDriver\MailerSendTrait;
 
-class RecodatorioPagoEmail extends Mailable
+class RecuperarPassword extends Mailable
 {
     use Queueable, SerializesModels, MailerSendTrait;
 
@@ -35,7 +35,7 @@ class RecodatorioPagoEmail extends Mailable
     public function envelope()
     {
         return new Envelope(
-            subject: "💎 Tu suscripción a Nenis está por vencer ⌛",
+            subject: "🔑 Recuperación de contraseña",
         );
     }
 
@@ -47,10 +47,10 @@ class RecodatorioPagoEmail extends Mailable
     public function content()
     {
         return new Content(
-            view: 'emails.recordatoriopago',
+            view: 'emails.recuperarpassword',
             with: [
                 'nombre' => $this->data['nombre'],
-                'fecha_vencimiento' => $this->data['fecha_vencimiento'],
+                'pass' => $this->data['pass'],
             ]  
         );
     }
