@@ -70,7 +70,6 @@ class AdminController extends Controller
                 'id' => 'required',
                 'nombre' => 'required',
                 'correo' => 'required|email',
-                'pass' => 'required',
                 'rol' => 'required',
             ]
         );
@@ -87,7 +86,9 @@ class AdminController extends Controller
 
         $admin->nombre = $request->nombre;
         $admin->correo = $request->correo;
-        $admin->pass = Hash::make($request->pass);
+        if($request->pass){
+            $admin->pass = Hash::make($request->pass);
+        }
         $admin->rol = $request->rol;
         $admin->save();
 

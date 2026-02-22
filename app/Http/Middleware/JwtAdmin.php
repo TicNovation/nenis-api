@@ -44,7 +44,7 @@ class JwtAdmin
 
             $admin = Admin::find($decoded->sub);
             if (is_object($admin)) {
-                if ($admin->active == 1) {
+                if ($admin->activo == 1) {
 
                 } else {
                     return response()->json(['message' => 'El administrador no se encuentra activo'], 401);
@@ -61,7 +61,7 @@ class JwtAdmin
             return response()->json(['message' => 'Clave de verificación inválida'], 401);
         }
 
-        $request->attributes->add(['token' => $decoded]);
+        $request->attributes->add(['user' => $admin, 'auth_type' => 'admin', 'token' => $decoded]);
         return $next($request);
     }
 }

@@ -13,6 +13,7 @@ class Sucursal extends Model
         'id_estado',
         'id_ciudad',
         'direccion_texto',
+        'visibilidad_direccion', // 'estado', 'ciudad','completa'
         'codigo_postal',
         'es_principal',
         'lat',

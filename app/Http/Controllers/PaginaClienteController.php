@@ -169,10 +169,22 @@ class PaginaClienteController extends Controller
         }
 
         $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
-                $q->where('activo', 1);
+                $q->where('activo', 1)->with(['estado', 'ciudad']);
             }])
             ->orderBy('prioridad_cache', 'DESC')
             ->paginate($request->input('por_pagina', 100));
+
+        $negocios->getCollection()->transform(function ($negocio) {
+            foreach ($negocio->sucursales as $sucursal) {
+                if ($sucursal->visibilidad_direccion !== 'completa') {
+                    $sucursal->direccion_texto = null;
+                    $sucursal->codigo_postal = null;
+                    $sucursal->lat = null;
+                    $sucursal->lng = null;
+                }
+            }
+            return $negocio;
+        });
 
         return response()->json(['data' => $negocios], 200);
     }
@@ -216,10 +228,22 @@ class PaginaClienteController extends Controller
 
 
         $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
-                $q->where('activo', 1);
+                $q->where('activo', 1)->with(['estado', 'ciudad']);
             }])
             ->orderBy('prioridad_cache', 'DESC')
             ->paginate($request->input('por_pagina', 100));
+
+        $negocios->getCollection()->transform(function ($negocio) {
+            foreach ($negocio->sucursales as $sucursal) {
+                if ($sucursal->visibilidad_direccion !== 'completa') {
+                    $sucursal->direccion_texto = null;
+                    $sucursal->codigo_postal = null;
+                    $sucursal->lat = null;
+                    $sucursal->lng = null;
+                }
+            }
+            return $negocio;
+        });
 
         $data = [
             'categoria' => Categoria::find($request->id_categoria),
@@ -253,7 +277,7 @@ class PaginaClienteController extends Controller
                     }]);
                 },
                 'sucursales' => function($q) {
-                    $q->where('activo', 1)->with('horarios');
+                    $q->where('activo', 1)->with(['horarios', 'estado', 'ciudad']);
                 },
                 'categoriaPrincipal'
             ])
@@ -261,6 +285,15 @@ class PaginaClienteController extends Controller
 
         if (!$negocio) {
             return response()->json(['message' => 'Negocio no encontrado'], 404);
+        }
+
+        foreach ($negocio->sucursales as $sucursal) {
+            if ($sucursal->visibilidad_direccion !== 'completa') {
+                $sucursal->direccion_texto = null;
+                $sucursal->codigo_postal = null;
+                $sucursal->lat = null;
+                $sucursal->lng = null;
+            }
         }
 
         // Renombrar items a productos para el front-end

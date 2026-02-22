@@ -60,7 +60,7 @@ class JwtAuth
             return response()->json(['message' => 'Usuario no encontrado'], 401);
         }
 
-        if ($user->active != 1) {
+        if ($user->activo != 1) {
             return response()->json(['message' => 'El usuario no se encuentra activo'], 401);
         }
 

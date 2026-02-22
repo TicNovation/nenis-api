@@ -11,6 +11,7 @@ class Plan extends Model
     protected $fillable = [
         'nombre',
         'precio_mensual',
+        'max_negocios',
         'max_items',
         'max_ofertas_empleo_activas',
         'max_imagenes_item',

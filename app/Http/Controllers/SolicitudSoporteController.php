@@ -45,7 +45,7 @@ class SolicitudSoporteController extends Controller
      */
     public function listar(Request $request)
     {
-        $type = $request->get('auth_type');
+        $type = $request->attributes->get('auth_type');
         
         $query = SolicitudSoporte::where('activo', 1)->orderBy('created_at', 'DESC');
 
@@ -73,7 +73,7 @@ class SolicitudSoporteController extends Controller
      */
     public function encontrar(Request $request, int $id)
     {
-        $type = $request->get('auth_type');
+        $type = $request->attributes->get('auth_type');
         $query = SolicitudSoporte::where('id', $id)->where('activo', 1)->with(['usuario', 'admin']);
 
         // Si es usuario, asegurar que solo pueda ver su propia solicitud

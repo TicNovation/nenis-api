@@ -63,6 +63,7 @@ class SucursalController extends Controller
             'id_ciudad' => 'required|integer',
             'direccion_texto' => 'required|string|max:255',
             'codigo_postal' => 'nullable|string|max:10',
+            'visibilidad_direccion' => 'required|in:estado,ciudad,completa',
             'es_principal' => 'required|boolean',
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
@@ -96,6 +97,7 @@ class SucursalController extends Controller
             'id_estado' => $request->id_estado,
             'id_ciudad' => $request->id_ciudad,
             'direccion_texto' => $request->direccion_texto,
+            'visibilidad_direccion' => $request->visibilidad_direccion,
             'codigo_postal' => $request->codigo_postal,
             'es_principal' => $request->es_principal,
             'lat' => $request->lat,
@@ -118,6 +120,7 @@ class SucursalController extends Controller
             'id_ciudad' => 'required|integer',
             'direccion_texto' => 'required|string|max:255',
             'codigo_postal' => 'nullable|string|max:10',
+            'visibilidad_direccion' => 'required|in:estado,ciudad,completa',
             'es_principal' => 'required|boolean',
             'lat' => 'nullable|numeric',
             'lng' => 'nullable|numeric',
@@ -150,6 +153,7 @@ class SucursalController extends Controller
         $sucursal->id_ciudad = $request->id_ciudad;
         $sucursal->direccion_texto = $request->direccion_texto;
         $sucursal->codigo_postal = $request->codigo_postal;
+        $sucursal->visibilidad_direccion = $request->visibilidad_direccion;
         $sucursal->es_principal = $request->es_principal;
         $sucursal->lat = $request->lat;
         $sucursal->lng = $request->lng;

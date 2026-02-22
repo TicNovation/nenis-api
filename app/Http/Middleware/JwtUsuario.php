@@ -42,7 +42,7 @@ class JwtUsuario
 
             $usuario = Usuario::find($decoded->sub);
             if(is_object($usuario)){
-                if($usuario->active == 1){
+                if($usuario->activo == 1){
 
                 }else{
                     return response()->json(['message' => 'El usuario no se encuentra activo'], 401);

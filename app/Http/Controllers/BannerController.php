@@ -18,7 +18,7 @@ class BannerController extends Controller
     {
         $validate = Validator::make($request->all(),
             [
-                'id_anunciante' => 'required',
+                'id_anunciante' => 'nullable|integer',
                 'enlace_externo' => 'required',
                 'id_estado' => 'required',
                 'id_ciudad' => 'required',
@@ -59,7 +59,7 @@ class BannerController extends Controller
         $validate = Validator::make($request->all(),
             [
                 'id' => 'required',
-                'id_anunciante' => 'required',
+                'id_anunciante' => 'nullable|integer',
                 'enlace_externo' => 'required',
                 'id_estado' => 'required',
                 'id_ciudad' => 'required',

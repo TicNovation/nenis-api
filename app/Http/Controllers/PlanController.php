@@ -48,6 +48,7 @@ class PlanController extends Controller
         $validate = Validator::make($request->all(), [
             'nombre' => 'required|string|max:50',
             'precio_mensual' => 'required|numeric|min:0',
+            'max_negocios' => 'required|integer|min:1',
             'max_items' => 'required|integer|min:0',
             'max_ofertas_empleo_activas' => 'required|integer|min:0',
             'max_imagenes_item' => 'required|integer|min:0',
@@ -79,6 +80,7 @@ class PlanController extends Controller
             'id' => 'required|integer',
             'nombre' => 'required|string|max:50',
             'precio_mensual' => 'required|numeric|min:0',
+            'max_negocios' => 'required|integer|min:1',
             'max_items' => 'required|integer|min:0',
             'max_ofertas_empleo_activas' => 'required|integer|min:0',
             'max_imagenes_item' => 'required|integer|min:0',

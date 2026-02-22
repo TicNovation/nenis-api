@@ -14,6 +14,7 @@ class Admin extends Model
         'rol',
         'activo',
     ];
+    protected $hidden = ['pass'];
 
     public $timestamps = true;
 }

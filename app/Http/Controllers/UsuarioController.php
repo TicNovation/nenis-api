@@ -133,9 +133,22 @@ class UsuarioController extends Controller
         // Registrar historial de membresía
         $this->registrarMembresia($usuario, $id_plan, 12, 0, 'REGISTRO_GRATIS');
 
+        // Generar JWT
+        $token = JWT::encode([
+            'sub' => $usuario->id,
+            'correo' => $usuario->correo,
+            'exp' => time() + 86400
+        ], config('jwt.secret_usuario'), 'HS256');
+
+        // Obtener los últimos 20 mensajes diarios activos
+        $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
+
+
         return response()->json([
             'message' => 'Usuario registrado exitosamente',
-            'data' => $usuario
+            'data' => $usuario,
+            'token' => $token,
+            'mensajes' => $mensajes
         ], 201);
     }
 

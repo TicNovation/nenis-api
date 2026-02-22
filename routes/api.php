@@ -21,6 +21,7 @@ use App\Http\Controllers\ReporteController;
 use App\Http\Controllers\BannerStatDiariaController;
 use App\Http\Controllers\SolicitudArcoController;
 use App\Http\Controllers\AuditoriaEliminacionController;
+use App\Http\Controllers\OfertaEmpleoController;
 use App\Http\Controllers\SolicitudSoporteController;
 
 // Rutas públicas de la Página del Cliente
@@ -30,8 +31,6 @@ Route::get('obtener-ciudades', [PaginaClienteController::class, 'obtenerCiudades
 Route::get('buscar-negocios', [PaginaClienteController::class, 'buscarNegocios']);
 Route::get('negocios-categoria', [PaginaClienteController::class, 'buscarNegociosPorCategoria']);
 Route::get('negocio/{slug}', [PaginaClienteController::class, 'encontrarNegocio']);
-
-
 
 //Rutas públicas
 Route::post('admin/login', [AdminController::class, 'login']);
@@ -100,6 +99,12 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::get('admin/soporte/encontrar/{id}', [SolicitudSoporteController::class, 'encontrar']);
     Route::post('admin/soporte/actualizar', [SolicitudSoporteController::class, 'actualizar']);
     Route::post('admin/soporte/eliminar', [SolicitudSoporteController::class, 'eliminar']);
+
+    // Ofertas de Empleo (Admin Global)
+    Route::post('oferta/crear', [OfertaEmpleoController::class, 'crear']);
+    Route::post('oferta/actualizar', [OfertaEmpleoController::class, 'actualizar']);
+    Route::post('oferta/eliminar', [OfertaEmpleoController::class, 'eliminar']);
+    Route::get('oferta/listar', [OfertaEmpleoController::class, 'listar']);
 
     // Planes
     Route::post('plan/crear', [PlanController::class, 'crear']);
