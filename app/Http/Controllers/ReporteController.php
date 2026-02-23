@@ -14,7 +14,7 @@ class ReporteController extends Controller
     public function crear(Request $request)
     {
         $validate = Validator::make($request->all(), [
-            'objetivo_tipo' => 'required|in:usuario,negocio,item,sucursal',
+            'objetivo_tipo' => 'required|in:usuario,negocio,item,sucursal,oferta,banner',
             'id_objetivo' => 'required|integer',
             'motivo' => 'required|string|max:190',
             'descripcion' => 'required|string',
@@ -48,6 +48,23 @@ class ReporteController extends Controller
         }
 
         $reportes = $query->get();
+
+        foreach ($reportes as $reporte) {
+            if ($reporte->objetivo_tipo == 'usuario') {
+                $reporte->objetivo = \App\Models\Usuario::find($reporte->id_objetivo);
+            } else if ($reporte->objetivo_tipo == 'negocio') {
+                $reporte->objetivo = \App\Models\Negocio::find($reporte->id_objetivo);
+            } else if ($reporte->objetivo_tipo == 'item') {
+                $reporte->objetivo = \App\Models\Item::find($reporte->id_objetivo);
+            } else if ($reporte->objetivo_tipo == 'oferta') {
+                $reporte->objetivo = \App\Models\OfertaEmpleo::find($reporte->id_objetivo);
+            } else if ($reporte->objetivo_tipo == 'banner') {
+                $reporte->objetivo = \App\Models\Banner::find($reporte->id_objetivo);
+            } else if ($reporte->objetivo_tipo == 'sucursal') {
+                $reporte->objetivo = \App\Models\Sucursal::find($reporte->id_objetivo);
+            }
+        }
+        
         return response()->json(['data' => $reportes], 200);
     }
 

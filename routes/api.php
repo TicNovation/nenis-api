@@ -23,6 +23,7 @@ use App\Http\Controllers\SolicitudArcoController;
 use App\Http\Controllers\AuditoriaEliminacionController;
 use App\Http\Controllers\OfertaEmpleoController;
 use App\Http\Controllers\SolicitudSoporteController;
+use App\Http\Controllers\StripeController;
 
 // Rutas públicas de la Página del Cliente
 Route::get('home', [PaginaClienteController::class, 'mostrarHome']);
@@ -62,8 +63,8 @@ Route::group(['middleware' => 'jwt.admin'], function () {
 
     // Anunciantes
     Route::post('anunciante/crear', [AnuncianteController::class, 'crear']);
-    Route::post('anunciante/actualizar/{id}', [AnuncianteController::class, 'actualizar']);
-    Route::post('anunciante/borrar/{id}', [AnuncianteController::class, 'borrar']);
+    Route::post('anunciante/actualizar', [AnuncianteController::class, 'actualizar']);
+    Route::post('anunciante/eliminar', [AnuncianteController::class, 'eliminar']);
     Route::get('anunciante/listar', [AnuncianteController::class, 'listar']);
     Route::get('anunciante/encontrar/{id}', [AnuncianteController::class, 'encontrar']);
 
@@ -101,10 +102,7 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('admin/soporte/eliminar', [SolicitudSoporteController::class, 'eliminar']);
 
     // Ofertas de Empleo (Admin Global)
-    Route::post('oferta/crear', [OfertaEmpleoController::class, 'crear']);
-    Route::post('oferta/actualizar', [OfertaEmpleoController::class, 'actualizar']);
-    Route::post('oferta/eliminar', [OfertaEmpleoController::class, 'eliminar']);
-    Route::get('oferta/listar', [OfertaEmpleoController::class, 'listar']);
+    Route::get('admin/oferta/listar', [OfertaEmpleoController::class, 'listar']);
 
     // Planes
     Route::post('plan/crear', [PlanController::class, 'crear']);
@@ -165,11 +163,11 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::post('negocio/categoria/eliminar', [NegocioCategoriaController::class, 'eliminar']);
 
     // Gestión de Items (Productos/Servicios)
-    Route::get('producto/listar/{id_negocio}/{usuario_id?}', [ItemController::class, 'listar']);
-    Route::get('producto/encontrar/{id}/{usuario_id?}', [ItemController::class, 'encontrar']);
-    Route::post('producto/crear', [ItemController::class, 'crear']);
-    Route::post('producto/actualizar', [ItemController::class, 'actualizar']);
-    Route::post('producto/eliminar', [ItemController::class, 'eliminar']);
+    Route::get('item/listar/{id_negocio}/{usuario_id?}', [ItemController::class, 'listar']);
+    Route::get('item/encontrar/{id}/{usuario_id?}', [ItemController::class, 'encontrar']);
+    Route::post('item/crear', [ItemController::class, 'crear']);
+    Route::post('item/actualizar', [ItemController::class, 'actualizar']);
+    Route::post('item/eliminar', [ItemController::class, 'eliminar']);
 
     // Sucursales
     Route::get('sucursal/listar/{id_negocio}/{usuario_id?}', [SucursalController::class, 'listar']);
@@ -177,6 +175,11 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::post('sucursal/crear', [SucursalController::class, 'crear']);
     Route::post('sucursal/actualizar', [SucursalController::class, 'actualizar']);
     Route::post('sucursal/eliminar', [SucursalController::class, 'eliminar']);
+
+    // Ofertas de Empleo
+    Route::post('oferta/crear', [OfertaEmpleoController::class, 'crear']);
+    Route::post('oferta/actualizar', [OfertaEmpleoController::class, 'actualizar']);
+    Route::post('oferta/eliminar', [OfertaEmpleoController::class, 'eliminar']);
 
     // Horarios de Sucursales
     Route::get('sucursal/horario/listar/{id_sucursal}/{usuario_id?}', [SucursalHorarioController::class, 'listar']);
@@ -187,6 +190,9 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 
     // Auditoría (Ruta compartida para registrar el motivo al borrar)
     Route::post('auditoria/registrar', [AuditoriaEliminacionController::class, 'registrar']);
+
+    // Stripe
+    Route::post('stripe/crear-sesion-pago', [StripeController::class, 'crearSesionPago']);
 });
 
 

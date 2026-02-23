@@ -76,6 +76,12 @@ class Negocio extends Model
         return $this->hasMany(ImagenNegocio::class, 'id_negocio');
     }
 
+    public function empleos()
+    {
+        return $this->hasMany(OfertaEmpleo::class, 'id_negocio');
+    }
+
+
     /**
      * Scope para filtrar negocios por jerarquía de visibilidad (pais, estado, ciudad).
      */

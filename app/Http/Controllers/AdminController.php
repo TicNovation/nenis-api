@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Admin;
+use App\Models\Estado;
 use Hash;
 use Firebase\JWT\JWT;
 use Validator;
@@ -32,9 +33,11 @@ class AdminController extends Controller
             return response()->json(['message' => 'Contraseña incorrecta'], 401);
         }
 
+        $estados = Estado::with('ciudades')->get();
+
         $token = JWT::encode(['sub' => $admin->id, 'nombre' => $admin->nombre, 'rol' => $admin->rol, 'exp' => time() + 86400], config('jwt.secret_admin'), 'HS256');
 
-        return response()->json(['message' => 'Admin logueado exitosamente', 'data' => $admin, 'token' => $token]);
+        return response()->json(['message' => 'Admin logueado exitosamente', 'data' => $admin, 'token' => $token, 'estados' => $estados]);
     }
 
     public function crear(Request $request)

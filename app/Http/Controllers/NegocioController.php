@@ -46,8 +46,8 @@ class NegocioController extends Controller
             'facebook' => 'nullable|string|max:190',
             'instagram' => 'nullable|string|max:190',
             'tiktok' => 'nullable|string|max:190',
-            'ruta_logo' => 'nullable|image|max:2048',
-            'ruta_imagen_destacada' => 'nullable|image|max:2048',
+            'ruta_logo' => 'nullable|image|max:4048',
+            'ruta_imagen_destacada' => 'nullable|image|max:4048',
         ]);
 
         if ($validate->fails()) {
@@ -91,11 +91,11 @@ class NegocioController extends Controller
         $negocio->activo = 1;
 
         if ($request->hasFile('ruta_logo')) {
-            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios/logos');
+            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
         }
 
         if ($request->hasFile('ruta_imagen_destacada')) {
-            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios/banners');
+            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
         }
 
         $negocio->save();
@@ -123,9 +123,8 @@ class NegocioController extends Controller
             'facebook' => 'nullable|string|max:190',
             'instagram' => 'nullable|string|max:190',
             'tiktok' => 'nullable|string|max:190',
-            'ruta_logo' => 'nullable|image|max:2048',
-            'ruta_imagen_destacada' => 'nullable|image|max:2048',
             'estatus' => 'sometimes|string|in:borrador,publicado,pausado',
+            'categorias_extra' => 'nullable|string', // JSON string of category IDs
         ]);
 
         if ($validate->fails()) {
@@ -133,10 +132,10 @@ class NegocioController extends Controller
         }
 
         $id_usuario_req = $request->input('id_usuario') ?? $request->query('id_usuario');
-        $id_usuario = $this->obtenerUsuarioId($request, $id_usuario_req);
+        $id_operador = $this->obtenerUsuarioId($request, $id_usuario_req);
         $negocio = Negocio::find($request->id);
 
-        if (!$negocio || $negocio->id_usuario != $id_usuario) {
+        if (!$negocio || $negocio->id_usuario != $id_operador) {
             return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
         }
 
@@ -163,17 +162,24 @@ class NegocioController extends Controller
             if ($negocio->ruta_logo) {
                 $this->eliminarArchivo($negocio->ruta_logo);
             }
-            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios/logos');
+            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
         }
 
         if ($request->hasFile('ruta_imagen_destacada')) {
             if ($negocio->ruta_imagen_destacada) {
                 $this->eliminarArchivo($negocio->ruta_imagen_destacada);
             }
-            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios/banners');
+            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
         }
 
         $negocio->save();
+
+        if ($request->has('categorias_extra')) {
+            $categoriasExtra = json_decode($request->categorias_extra, true);
+            if (is_array($categoriasExtra)) {
+                $negocio->categorias()->sync($categoriasExtra);
+            }
+        }
 
         return response()->json(['message' => 'Negocio actualizado exitosamente', 'data' => $negocio], 200);
     }
@@ -186,7 +192,7 @@ class NegocioController extends Controller
         $id_usuario = $this->obtenerUsuarioId($request, $usuario_id);
         $negocio = Negocio::where('id', $id)
             ->where('id_usuario', $id_usuario)
-            ->with(['categoriaPrincipal', 'imagenes', 'sucursales', 'items'])
+            ->with(['categoriaPrincipal', 'categorias', 'imagenes', 'sucursales', 'items', 'empleos'])
             ->first();
 
         if (!$negocio) {
@@ -210,9 +216,9 @@ class NegocioController extends Controller
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $id_usuario = $this->obtenerUsuarioId($request, $request->id_usuario);
+        $id_operador = $this->obtenerUsuarioId($request, $request->id_usuario);
         $negocio = Negocio::where('id', $request->id)
-            ->where('id_usuario', $id_usuario)
+            ->where('id_usuario', $id_operador)
             ->first();
 
         if (!$negocio) {

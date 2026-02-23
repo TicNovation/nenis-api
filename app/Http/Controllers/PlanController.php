@@ -47,6 +47,7 @@ class PlanController extends Controller
     {
         $validate = Validator::make($request->all(), [
             'nombre' => 'required|string|max:50',
+            'stripe_precio_id' => 'nullable|string|max:255',
             'precio_mensual' => 'required|numeric|min:0',
             'max_negocios' => 'required|integer|min:1',
             'max_items' => 'required|integer|min:0',
@@ -79,6 +80,7 @@ class PlanController extends Controller
         $validate = Validator::make($request->all(), [
             'id' => 'required|integer',
             'nombre' => 'required|string|max:50',
+            'stripe_precio_id' => 'nullable|string|max:255',
             'precio_mensual' => 'required|numeric|min:0',
             'max_negocios' => 'required|integer|min:1',
             'max_items' => 'required|integer|min:0',

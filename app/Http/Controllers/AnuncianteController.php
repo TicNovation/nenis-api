@@ -55,23 +55,24 @@ class AnuncianteController extends Controller
     /**
      * Actualizar un anunciante existente.
      */
-    public function actualizar(Request $request, $id)
+    public function actualizar(Request $request)
     {
-        $anunciante = Anunciante::find($id);
-
-        if (!$anunciante) {
-            return response()->json(['message' => 'Anunciante no encontrado'], 404);
-        }
-
         $validator = Validator::make($request->all(), [
+            'id' => 'required',
             'nombre' => 'sometimes|string|max:190',
-            'correo' => 'sometimes|email|unique:anunciantes,correo,' . $id,
+            'correo' => 'sometimes|email|unique:anunciantes,correo,' . $request->id,
             'telefono' => 'sometimes|nullable|string|max:30',
             'activo' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['message' => $validator->errors()->first()], 400);
+        }
+
+        $anunciante = Anunciante::find($request->id);
+
+        if (!$anunciante) {
+            return response()->json(['message' => 'Anunciante no encontrado'], 404);
         }
 
         $anunciante->update($request->all());
@@ -82,9 +83,17 @@ class AnuncianteController extends Controller
     /**
      * Borrar (soft-delete) un anunciante.
      */
-    public function borrar($id)
+    public function eliminar(Request $request)
     {
-        $anunciante = Anunciante::find($id);
+        $validator = Validator::make($request->all(), [
+            'id' => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 400);
+        }
+
+        $anunciante = Anunciante::find($request->id);
 
         if (!$anunciante) {
             return response()->json(['message' => 'Anunciante no encontrado'], 404);

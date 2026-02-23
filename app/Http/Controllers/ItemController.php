@@ -52,7 +52,7 @@ class ItemController extends Controller
             'tipo_item' => 'required|in:producto,servicio',
             'precio' => 'required|numeric|min:0',
             'url_externa' => 'nullable|url|max:255',
-            'ruta_imagen_destacada' => 'nullable|image|max:2048',
+            'ruta_imagen_destacada' => 'nullable|image|max:3048',
             'id_usuario' => 'sometimes|integer',
         ]);
 
@@ -61,6 +61,7 @@ class ItemController extends Controller
         }
 
         $usuario = $this->obtenerUsuario($request, $request->id_usuario);
+        
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
@@ -77,7 +78,7 @@ class ItemController extends Controller
         // Validar límite de items según plan
         $plan = Plan::find($usuario->id_plan_activo);
         if ($usuario->total_items >= $plan->max_items) {
-            return response()->json(['message' => 'Has alcanzado el límite máximo de productos/servicios en tu plan actual'], 403);
+            return response()->json(['message' => 'Has alcanzado el límite máximo de productos en tu plan actual'], 403);
         }
 
         $item = new Item();
@@ -93,7 +94,7 @@ class ItemController extends Controller
         $item->activo = 1;
 
         if ($request->hasFile('ruta_imagen_destacada')) {
-            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos/destacadas');
+            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos');
         }
 
         $item->save();
@@ -148,7 +149,7 @@ class ItemController extends Controller
             if ($item->ruta_imagen_destacada) {
                 $this->eliminarArchivo($item->ruta_imagen_destacada);
             }
-            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos/destacadas');
+            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos');
         }
 
         $item->save();

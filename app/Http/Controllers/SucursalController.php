@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Sucursal;
+use App\Models\SucursalHorario;
 use App\Models\Negocio;
 use Validator;
 

@@ -7,6 +7,7 @@ use App\Models\Membresia;
 use Illuminate\Http\Request;
 use App\Models\Usuario;
 use App\Models\Negocio;
+use App\Models\Estado;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -78,12 +79,13 @@ class UsuarioController extends Controller
 
         // Obtener los últimos 20 mensajes diarios activos
         $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
-
+        $estados = Estado::with('ciudades')->get();
 
         return response()->json([
             'message' => 'Usuario logueado exitosamente',
             'data' => $usuario,
             'token' => $token,
+            'estados' => $estados,
             'mensajes' => $mensajes
         ]);
     }
