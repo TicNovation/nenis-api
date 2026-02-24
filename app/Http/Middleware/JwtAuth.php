@@ -29,34 +29,37 @@ class JwtAuth
             return response()->json(['message' => 'No ha iniciado sesión'], 401);
         }
 
+        // Limpiar Bearer con cualquier cantidad de espacios
+        $jwt = preg_replace('/^Bearer\s+/i', '', $jwt);
+        $jwt = trim($jwt);
         $decoded = null;
         $user = null;
         $type = null;
 
-        // Intentar validar como Admin
+        // 1. Intentar como Admin
         try {
             $decoded = JWT::decode($jwt, new Key(config('jwt.secret_admin'), 'HS256'));
             $user = Admin::find($decoded->sub);
-            $type = 'admin';
-        } catch (SignatureInvalidException $e) {
+            if ($user) $type = 'admin';
+        } catch (\Exception $e) {
+            // No es un token de admin válido o secret distinto
+        }
+
+        // 2. Si no es admin, intentar como Usuario
+        if (!$type) {
             try {
                 $decoded = JWT::decode($jwt, new Key(config('jwt.secret_usuario'), 'HS256'));
                 $user = Usuario::find($decoded->sub);
-                $type = 'usuario';
-            } catch (SignatureInvalidException $e2) {
-                return response()->json(['message' => 'No se pudo comprobar su identidad'], 401);
-            } catch (ExpiredException $e2) {
+                if ($user) $type = 'usuario';
+            } catch (ExpiredException $e) {
                 return response()->json(['message' => 'Su sesión ha expirado'], 401);
-            } catch (UnexpectedValueException $e2) {
-                return response()->json(['message' => 'Clave de verificación inválida'], 401);
+            } catch (\Exception $e) {
+                // Token inválido para ambos
+                return response()->json(['message' => 'Sesión inválida o expirada'], 401);
             }
-        } catch (ExpiredException $e) {
-            return response()->json(['message' => 'Su sesión ha expirado'], 401);
-        } catch (UnexpectedValueException $e) {
-            return response()->json(['message' => 'Clave de verificación inválida'], 401);
         }
 
-        if (!is_object($user)) {
+        if (!$user) {
             return response()->json(['message' => 'Usuario no encontrado'], 401);
         }
 

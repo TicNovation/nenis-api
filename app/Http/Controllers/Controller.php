@@ -56,8 +56,8 @@ abstract class Controller
 
     //Obtiene el Usuario. Si un admin lo ejecuta, entonces buscará al usuario que viene en el request, si lo ejecuta un Usuario emprendedor, entonces los buscará con base en su token
     public function obtenerUsuarioId(Request $request, $id_usuario){
-        $user = $request->get('user');
-        $type = $request->get('auth_type');
+        $user = $request->attributes->get('user');
+        $type = $request->attributes->get('auth_type');
 
         if($type == 'admin'){
             return $id_usuario;
@@ -67,8 +67,8 @@ abstract class Controller
     }
 
     public function obtenerUsuario(Request $request, $id_usuario){
-        $user = $request->get('user');
-        $type = $request->get('auth_type');
+        $user = $request->attributes->get('user');
+        $type = $request->attributes->get('auth_type');
 
         if($type == 'admin'){
             return Usuario::where('id', $id_usuario)->first();

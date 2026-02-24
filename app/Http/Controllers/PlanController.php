@@ -22,7 +22,7 @@ class PlanController extends Controller
      */
     public function listarActivos()
     {
-        $planes = Plan::where('activo', 1)->orderBy('precio_mensual', 'ASC')->get();
+        $planes = Plan::where('activo', 1)->with('precios')->orderBy('precio_mensual', 'ASC')->get();
         return response()->json(['data' => $planes], 200);
     }
 

@@ -37,6 +37,10 @@ class JwtUsuario
             return response()->json(['message' => 'No ha iniciado sesión'], 401);
         }
 
+        // Limpiar Bearer con cualquier cantidad de espacios
+        $jwt = preg_replace('/^Bearer\s+/i', '', $jwt);
+        $jwt = trim($jwt);
+
         try {
             $decoded = JWT::decode($jwt, new Key(config('jwt.secret_usuario'), 'HS256'));
 
@@ -59,7 +63,7 @@ class JwtUsuario
             return response()->json(['message' => 'Clave de verificación inválida'], 401);
         }
 
-        $request->attributes->add(['token'=>$decoded]);
+        $request->attributes->add(['token' => $decoded]);
         return $next($request);
     }
 }

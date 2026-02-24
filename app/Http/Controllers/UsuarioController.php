@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use App\Models\MensajeDiario;
 use App\Mail\RecuperarPassword;
 use Illuminate\Support\Facades\Mail;
+use App\Mail\VerificacionEmail;
 
 
 class UsuarioController extends Controller
@@ -66,8 +68,12 @@ class UsuarioController extends Controller
             }
         }
 
+        if (!$usuario->correo_verificado) {
+            return response()->json(['message' => 'Debes verificar tu correo electrónico antes de iniciar sesión.'], 403);
+        }
+
         if (!$usuario->activo) {
-            return response()->json(['message' => 'Cuenta desactivada'], 403);
+            return response()->json(['message' => 'Cuenta desactivada. Contacta al soporte.'], 403);
         }
 
         // Generar JWT
@@ -120,6 +126,7 @@ class UsuarioController extends Controller
         $usuario->telefono = $request->telefono;
         $usuario->pass = Hash::make($request->pass);
         $usuario->id_plan_activo = $id_plan;
+        $usuario->correo_verificado = 0;
         
         // Heredar configuración del plan
         $usuario->max_alcance_visibilidad = $plan->max_alcance_visibilidad;
@@ -129,7 +136,7 @@ class UsuarioController extends Controller
         
         $usuario->total_negocios = 0;
         $usuario->total_items = 0;
-        $usuario->activo = 1;
+        $usuario->activo = 0; // Desactivado hasta que verifique correo
         $usuario->save();
 
         // Registrar historial de membresía
@@ -144,6 +151,20 @@ class UsuarioController extends Controller
 
         // Obtener los últimos 20 mensajes diarios activos
         $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
+
+        // Enviar correo de verificación
+        $token_verificacion = JWT::encode([
+            'sub' => $usuario->id,
+            'correo' => $usuario->correo,
+            'exp' => time() + 86400 * 3
+        ], config('jwt.secret_usuario'), 'HS256');
+
+        $url = "https://admin.nenis.com.mx/verificarcorreo?token=" . $token_verificacion;//PROD
+        $url = "http://localhost:8080/verificarcorreo?token=" . $token_verificacion;//DEV
+        Mail::to($usuario->correo)->send(new VerificacionEmail([
+            'nombre' => $usuario->nombre,
+            'url' => $url
+        ]));
 
 
         return response()->json([
@@ -185,6 +206,7 @@ class UsuarioController extends Controller
         $usuario->pass = Hash::make($request->pass);
         $usuario->id_plan_activo = $request->id_plan_activo;
         $usuario->activo = $request->activo;
+        $usuario->correo_verificado = 1;
 
         // Configuraciones de plan heredadas
         $usuario->max_alcance_visibilidad = $plan->max_alcance_visibilidad;
@@ -220,13 +242,20 @@ class UsuarioController extends Controller
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $usuario = $this->obtenerUsuario($request, null);
+        $usuario = $this->obtenerUsuario($request, $request->id_usuario);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
         $plan = Plan::find($request->id_plan);
+        $type = $request->get('auth_type');
+
+        // Seguridad: Solo admin puede cambiar a planes de pago sin proceso de Stripe configurado aquí.
+        // Usuarios solo pueden cambiar a planes gratuitos directamente.
+        if ($type !== 'admin' && $plan->precio_mensual > 0) {
+            return response()->json(['message' => 'Este plan requiere pago. Por favor, utiliza la pasarela de pago.'], 402);
+        }
 
         // LÓGICA DE CAMBIO: Cancelamos membresías anteriores para que el nuevo plan mande desde hoy
         Membresia::where('id_usuario', $usuario->id)
@@ -244,8 +273,8 @@ class UsuarioController extends Controller
         $this->registrarMembresia(
             $usuario, 
             $plan->id, 
-            $request->input('meses', 1), 
-            $request->input('monto', $request->input('monto', $plan->precio_mensual)), 
+            $request->input('meses', 12), // Default 12 meses para cambios gratuitos 
+            $request->input('monto', 0), 
             $request->input('stripe_id', 'CAMBIO_PLAN'),
             $request->input('stripe_cliente_id', $request->stripe_cliente_id)
         );
@@ -258,7 +287,6 @@ class UsuarioController extends Controller
             'data' => $usuario
         ], 200);
     }
-
     public function renovarPlan(Request $request)
     {
         $validate = Validator::make($request->all(), [
@@ -272,10 +300,18 @@ class UsuarioController extends Controller
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $usuario = $this->obtenerUsuario($request, null);
+        $usuario = $this->obtenerUsuario($request, $request->id_usuario);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        $plan = Plan::find($usuario->id_plan_activo);
+        $type = $request->get('auth_type');
+
+        // Seguridad: Solo permitimos renovar directamente si el plan es GRATUITO o si es ADMIN
+        if ($type !== 'admin' && $plan->precio_mensual > 0) {
+            return response()->json(['message' => 'La renovación de este plan requiere pago.'], 402);
         }
 
         // RENOVACIÓN: Solo extendemos el tiempo del plan ACTUAL
@@ -286,19 +322,31 @@ class UsuarioController extends Controller
             ->first();
 
         $hoy = Carbon::now();
+
+        // Seguridad: Si el plan es gratuito, no permitir renovar si faltan más de 7 días para expirar
+        if ($type !== 'admin' && $plan->precio_mensual == 0) {
+            if ($ultimaMembresia && $ultimaMembresia->fin_en->diffInDays($hoy, false) < -7) {
+                return response()->json(['message' => 'Aún tienes tiempo a favor. Podrás renovar cuando falten menos de 7 días para que expire tu plan.'], 400);
+            }
+        }
+
         $fechaInicio = $hoy;
 
         if ($ultimaMembresia && $ultimaMembresia->fin_en > $hoy) {
             // Si tiene tiempo a favor del mismo plan, se acumula al final
             $fechaInicio = $ultimaMembresia->fin_en;
+            
+            // IMPORTANTE: Para evitar múltiples membresías 'vigentes' visualmente, 
+            // marcamos la anterior como 'completada' o 'extendida' al crear la nueva
+            $ultimaMembresia->update(['estatus' => 'finalizado_por_renovacion']);
         }
 
         $this->registrarMembresia(
             $usuario,
             $usuario->id_plan_activo,
-            $request->meses,
-            $request->monto,
-            $request->input('stripe_id', 'RENOVACION'),
+            $request->input('meses', 12), // Por defecto 12 meses si es gratis/admin
+            $request->input('monto', 0),
+            $request->input('stripe_id', 'RENOVACION_DIRECTA'),
             $request->input('stripe_cliente_id', $request->stripe_cliente_id),
             $fechaInicio
         );
@@ -329,6 +377,7 @@ class UsuarioController extends Controller
             'pass' => 'sometimes|string|min:6',
             'id_plan_activo' => 'sometimes|integer|exists:planes,id',
             'activo' => 'sometimes|boolean',
+            'correo_verificado' => 'sometimes|boolean',
         ]);
 
         if ($validate->fails()) {
@@ -349,6 +398,7 @@ class UsuarioController extends Controller
             $usuario->temp_pass = null; // Limpiar contraseña temporal
         }
         if ($request->has('activo')) $usuario->activo = $request->activo;
+        if ($request->has('correo_verificado')) $usuario->correo_verificado = $request->correo_verificado;
 
         $usuario->save();
 
@@ -454,4 +504,28 @@ class UsuarioController extends Controller
             'debug_temp_pass' => config('app.debug') ? $temp_pass : null // Solo mostrar en local/debug
         ], 200);
     }
+
+    public function verificarCorreo(Request $request){
+        try {
+            $token = $request->token;
+            if (!$token) return response()->json(['message' => 'Token no proporcionado'], 400);
+
+            $decoded = JWT::decode($token, new Key(config('jwt.secret_usuario'), 'HS256'));
+
+            if ($decoded->sub){
+                $usuario = Usuario::find($decoded->sub);
+                if (!$usuario) return response()->json(['message' => 'Usuario no encontrado'], 404);
+                
+                $usuario->activo = 1;
+                $usuario->correo_verificado = 1;
+                $usuario->save();
+                return response()->json(['message' => '¡Correo verificado exitosamente! Ya puedes iniciar sesión.'], 200);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'El enlace de verificación ha expirado o es inválido.'], 400);
+        }
+
+        return response()->json(['message' => 'Token inválido, contacte al administrador'], 400);
+    }
+    
 }

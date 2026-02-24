@@ -39,6 +39,10 @@ class JwtAdmin
             return response()->json(['message' => 'No ha iniciado sesión'], 401);
         }
 
+        // Limpiar Bearer con cualquier cantidad de espacios
+        $jwt = preg_replace('/^Bearer\s+/i', '', $jwt);
+        $jwt = trim($jwt);
+
         try {
             $decoded = JWT::decode($jwt, new Key(config('jwt.secret_admin'), 'HS256'));
 

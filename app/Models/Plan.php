@@ -39,4 +39,9 @@ class Plan extends Model
         'destacado' => 'boolean',
         'activo' => 'boolean',
     ];
+
+    public function precios()
+    {
+        return $this->hasMany(PlanPrecio::class, 'id_plan');
+    }
 }

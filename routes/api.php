@@ -24,6 +24,7 @@ use App\Http\Controllers\AuditoriaEliminacionController;
 use App\Http\Controllers\OfertaEmpleoController;
 use App\Http\Controllers\SolicitudSoporteController;
 use App\Http\Controllers\StripeController;
+use App\Http\Controllers\PlanPrecioController;
 
 // Rutas públicas de la Página del Cliente
 Route::get('home', [PaginaClienteController::class, 'mostrarHome']);
@@ -37,9 +38,11 @@ Route::get('negocio/{slug}', [PaginaClienteController::class, 'encontrarNegocio'
 Route::post('admin/login', [AdminController::class, 'login']);
 Route::post('usuario/login', [UsuarioController::class, 'login']);
 Route::post('usuario/registro', [UsuarioController::class, 'registro']);
+Route::post('usuario/verificar-correo', [UsuarioController::class, 'verificarCorreo']);
 Route::post('usuario/recuperar-password', [UsuarioController::class, 'recuperarPassword']);
 Route::post('reporte/crear', [ReporteController::class, 'crear']);
 Route::post('banner/clic', [BannerStatDiariaController::class, 'registrarClic']);
+Route::post('stripe/webhook', [StripeController::class, 'webhook']);
 
 //Rutas cliente final
 
@@ -57,7 +60,6 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('categoria/crear', [CategoriaController::class, 'crear']);
     Route::post('categoria/actualizar', [CategoriaController::class, 'actualizar']);
     Route::post('categoria/eliminar', [CategoriaController::class, 'eliminar']);
-    Route::get('categoria/listar', [CategoriaController::class, 'listar']);
     Route::get('categoria/encontrar/{id}', [CategoriaController::class, 'encontrar']);
     Route::post('categoria/restaurar', [CategoriaController::class, 'restaurar']);
 
@@ -78,8 +80,8 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('mensaje/crear', [MensajeDiarioController::class, 'crear']);
     Route::post('mensaje/actualizar', [MensajeDiarioController::class, 'actualizar']);
     Route::post('mensaje/eliminar', [MensajeDiarioController::class, 'eliminar']);
-    Route::get('mensaje/listar', [MensajeDiarioController::class, 'listar']);
     Route::get('mensaje/encontrar/{id}', [MensajeDiarioController::class, 'encontrar']);
+    Route::get('mensaje/listar', [MensajeDiarioController::class, 'listar']);
 
     // Reportes de Usuarios y Negocios
     Route::get('reporte/listar', [ReporteController::class, 'listar']);
@@ -118,6 +120,17 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('usuario/eliminar', [UsuarioController::class, 'eliminar']);
     Route::get('usuario/listar', [UsuarioController::class, 'listar']);
     Route::get('usuario/encontrar/{id}', [UsuarioController::class, 'encontrar']);
+    
+    // Plan Precios
+    Route::get('plan-precio/listar/{id_plan}', [PlanPrecioController::class, 'listarPorPlan']);
+    Route::post('plan-precio/crear', [PlanPrecioController::class, 'crear']);
+    Route::post('plan-precio/actualizar', [PlanPrecioController::class, 'actualizar']);
+    Route::post('plan-precio/eliminar', [PlanPrecioController::class, 'eliminar']);
+
+    // Negocios (Admin)
+    Route::get('admin/negocio/listar', [NegocioController::class, 'listarAdmin']);
+    Route::post('admin/negocio/verificar', [NegocioController::class, 'verificar']);
+    Route::post('admin/negocio/eliminar', [NegocioController::class, 'eliminarAdmin']);
 
 });
 
@@ -134,6 +147,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 
     // Planes disponibles
     Route::get('planes/disponibles', [PlanController::class, 'listarActivos']);
+    Route::get('categoria/listar', [CategoriaController::class, 'listar']);
     Route::post('usuario/cambiar-plan', [UsuarioController::class, 'cambiarPlan']);
     Route::post('usuario/renovar-plan', [UsuarioController::class, 'renovarPlan']);
 

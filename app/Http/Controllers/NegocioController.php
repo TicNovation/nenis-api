@@ -66,7 +66,7 @@ class NegocioController extends Controller
         $negocio->id_categoria_principal = $request->id_categoria_principal;
         $nombre = $request->input('nombre');
         $negocio->nombre = $nombre;
-        $negocio->slug = Str::slug($nombre . '-' . Str::random(5)); // Slug único
+        $negocio->slug = $this->generarSlugUnico($nombre);
         $negocio->descripcion = $request->descripcion;
         $negocio->slogan = $request->slogan;
         $negocio->palabras_clave = $request->palabras_clave;
@@ -228,5 +228,91 @@ class NegocioController extends Controller
         $negocio->delete();
 
         return response()->json(['message' => 'Negocio eliminado exitosamente'], 200);
+    }
+
+    /**
+     * Admin: Listar todos los negocios.
+     */
+    public function listarAdmin()
+    {
+        $negocios = Negocio::with(['usuario', 'categoriaPrincipal'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json(['data' => $negocios], 200);
+    }
+
+    /**
+     * Admin: Verificar un negocio.
+     */
+    public function verificar(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'id' => 'required|integer',
+            'estatus_verificacion' => 'required|string|in:verificado,rechazado,pendiente',
+            'estatus' => 'sometimes|string|in:publicado,borrador,pausado'
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $negocio = Negocio::find($request->id);
+
+        if (!$negocio) {
+            return response()->json(['message' => 'Negocio no encontrado'], 404);
+        }
+
+        $negocio->estatus_verificacion = $request->estatus_verificacion;
+        
+        if ($request->has('estatus')) {
+            $negocio->estatus = $request->estatus;
+        }
+
+        $negocio->save();
+
+        return response()->json(['message' => 'Estatus de negocio actualizado', 'data' => $negocio], 200);
+    }
+
+    /**
+     * Admin: Eliminar cualquier negocio.
+     */
+    public function eliminarAdmin(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'id' => 'required|integer'
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $negocio = Negocio::find($request->id);
+
+        if (!$negocio) {
+            return response()->json(['message' => 'Negocio no encontrado'], 404);
+        }
+
+        $negocio->delete();
+
+        return response()->json(['message' => 'Negocio eliminado por el administrador'], 200);
+    }
+
+    /**
+     * Genera un slug único basado en el nombre del negocio.
+     * Ejemplo: "Pastelería Mary" -> "pasteleria-mary", "pasteleria-mary-1", etc.
+     */
+    private function generarSlugUnico($nombre)
+    {
+        $slug = Str::slug($nombre);
+        $original = $slug;
+        $count = 1;
+
+        while (Negocio::where('slug', $slug)->exists()) {
+            $slug = $original . '-' . $count;
+            $count++;
+        }
+
+        return $slug;
     }
 }

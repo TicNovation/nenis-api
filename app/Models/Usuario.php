@@ -19,6 +19,7 @@ class Usuario extends Authenticatable
         'telefono',
         'pass',
         'temp_pass',
+        'correo_verificado',
         'id_plan_activo',
         'total_negocios',
         'total_items',

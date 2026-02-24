@@ -12,9 +12,17 @@ class CategoriaController extends Controller
     /**
      * Listar todas las categorías.
      */
-    public function listar()
+    public function listar(Request $request)
     {
-        $categorias = Categoria::with('padre')->get();
+        $type = $request->attributes->get('auth_type');
+        
+        $query = Categoria::with('padre');
+        
+        if ($type !== 'admin') {
+            $query->where('activo', 1);
+        }
+
+        $categorias = $query->get();
         return response()->json(['data' => $categorias], 200);
     }
 
