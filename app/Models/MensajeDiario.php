@@ -13,6 +13,7 @@ class MensajeDiario extends Model
         'titulo',
         'contenido',
         'autor',
+        'autor_enlace',
         'activo',
     ];
 

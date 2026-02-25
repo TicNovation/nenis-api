@@ -144,9 +144,11 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     // Galeria de negocios
     Route::post('negocio/imagen/crear', [ImagenNegocioController::class, 'crear']);
     Route::post('negocio/imagen/eliminar', [ImagenNegocioController::class, 'eliminar']);
+    Route::get('negocio/imagen/listar/{id_negocio}/{usuario_id?}', [ImagenNegocioController::class, 'listar']);
 
     // Planes disponibles
     Route::get('planes/disponibles', [PlanController::class, 'listarActivos']);
+    Route::get('usuario/perfil', [UsuarioController::class, 'perfil']);
     Route::get('categoria/listar', [CategoriaController::class, 'listar']);
     Route::post('usuario/cambiar-plan', [UsuarioController::class, 'cambiarPlan']);
     Route::post('usuario/renovar-plan', [UsuarioController::class, 'renovarPlan']);
@@ -167,7 +169,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 
     // Gestión de Negocios
     Route::get('negocio/listar/{usuario_id?}', [NegocioController::class, 'listar']);
-    Route::post('negocio/crear', [NegocioController::class, 'crear']);
+    Route::post('negocio/crear', [NegocioController::class, 'crear'])->middleware('check.limits:negocios');
     Route::post('negocio/actualizar', [NegocioController::class, 'actualizar']);
     Route::get('negocio/encontrar/{id}/{usuario_id?}', [NegocioController::class, 'encontrar']);
     Route::post('negocio/eliminar', [NegocioController::class, 'eliminar']);
@@ -179,19 +181,19 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     // Gestión de Items (Productos/Servicios)
     Route::get('item/listar/{id_negocio}/{usuario_id?}', [ItemController::class, 'listar']);
     Route::get('item/encontrar/{id}/{usuario_id?}', [ItemController::class, 'encontrar']);
-    Route::post('item/crear', [ItemController::class, 'crear']);
+    Route::post('item/crear', [ItemController::class, 'crear'])->middleware('check.limits:items');
     Route::post('item/actualizar', [ItemController::class, 'actualizar']);
     Route::post('item/eliminar', [ItemController::class, 'eliminar']);
 
     // Sucursales
     Route::get('sucursal/listar/{id_negocio}/{usuario_id?}', [SucursalController::class, 'listar']);
     Route::get('sucursal/encontrar/{id}/{usuario_id?}', [SucursalController::class, 'encontrar']);
-    Route::post('sucursal/crear', [SucursalController::class, 'crear']);
+    Route::post('sucursal/crear', [SucursalController::class, 'crear'])->middleware('check.limits:sucursales');
     Route::post('sucursal/actualizar', [SucursalController::class, 'actualizar']);
     Route::post('sucursal/eliminar', [SucursalController::class, 'eliminar']);
 
     // Ofertas de Empleo
-    Route::post('oferta/crear', [OfertaEmpleoController::class, 'crear']);
+    Route::post('oferta/crear', [OfertaEmpleoController::class, 'crear'])->middleware('check.limits:empleos');
     Route::post('oferta/actualizar', [OfertaEmpleoController::class, 'actualizar']);
     Route::post('oferta/eliminar', [OfertaEmpleoController::class, 'eliminar']);
 

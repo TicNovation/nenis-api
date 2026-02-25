@@ -57,6 +57,11 @@ class Usuario extends Authenticatable
         return $this->hasMany(Negocio::class, 'id_usuario');
     }
 
+    public function items()
+    {
+        return $this->hasManyThrough(Item::class, Negocio::class, 'id_usuario', 'id_negocio');
+    }
+
     public function membresias()
     {
         return $this->hasMany(Membresia::class, 'id_usuario');

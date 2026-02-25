@@ -87,6 +87,9 @@ class UsuarioController extends Controller
         $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
         $estados = Estado::with('ciudades')->get();
 
+        $usuario->load(['planActivo', 'membresias']);
+        $usuario->loadCount(['negocios', 'items']);
+
         return response()->json([
             'message' => 'Usuario logueado exitosamente',
             'data' => $usuario,
@@ -142,16 +145,6 @@ class UsuarioController extends Controller
         // Registrar historial de membresía
         $this->registrarMembresia($usuario, $id_plan, 12, 0, 'REGISTRO_GRATIS');
 
-        // Generar JWT
-        $token = JWT::encode([
-            'sub' => $usuario->id,
-            'correo' => $usuario->correo,
-            'exp' => time() + 86400
-        ], config('jwt.secret_usuario'), 'HS256');
-
-        // Obtener los últimos 20 mensajes diarios activos
-        $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
-
         // Enviar correo de verificación
         $token_verificacion = JWT::encode([
             'sub' => $usuario->id,
@@ -170,8 +163,6 @@ class UsuarioController extends Controller
         return response()->json([
             'message' => 'Usuario registrado exitosamente',
             'data' => $usuario,
-            'token' => $token,
-            'mensajes' => $mensajes
         ], 201);
     }
 
@@ -433,13 +424,18 @@ class UsuarioController extends Controller
 
     public function listar()
     {
-        $usuarios = Usuario::with('planActivo')->get();
+        $usuarios = Usuario::with('planActivo')
+            ->withCount(['negocios', 'items'])
+            ->get();
         return response()->json(['data' => $usuarios], 200);
     }
 
     public function encontrar(int $id)
     {
         $usuario = Usuario::with(['planActivo', 'negocios', 'membresias'])->find($id);
+        if ($usuario) {
+            $usuario->loadCount(['negocios', 'items']);
+        }
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
@@ -527,5 +523,18 @@ class UsuarioController extends Controller
 
         return response()->json(['message' => 'Token inválido, contacte al administrador'], 400);
     }
-    
+
+    public function perfil(Request $request)
+    {
+        $id_usuario = $this->obtenerUsuarioId($request, $request->id_usuario);
+        $usuario = Usuario::with(['planActivo', 'membresias'])->where('id', $id_usuario)->first();
+        
+        if (!$usuario) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        $usuario->loadCount(['negocios', 'items']);
+
+        return response()->json(['data' => $usuario], 200);
+    }
 }

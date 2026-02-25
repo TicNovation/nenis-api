@@ -13,7 +13,7 @@ class ImagenNegocioController extends Controller
     {
         $validate = Validator::make($request->all(), [
             'id_negocio' => 'required|integer',
-            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif|max:3048',
         ]);
 
         if ($validate->fails()) {
@@ -61,5 +61,15 @@ class ImagenNegocioController extends Controller
         $imagen->delete();
 
         return response()->json(['message' => 'Imagen eliminada exitosamente'], 200);
+    }
+
+    public function listar(Request $request, int $id_negocio, ?int $usuario_id = null)
+    {
+
+        $id_usuario = $this->obtenerUsuarioId($request, $usuario_id);
+
+        $negocio = Negocio::where('id', $id_negocio)->where('id_usuario', $id_usuario)->with('imagenes')->first();
+
+        return response()->json(['data' => $negocio->imagenes, 'message' => 'Imagenes obtenidas exitosamente'], 200);
     }
 }

@@ -100,6 +100,9 @@ class NegocioController extends Controller
 
         $negocio->save();
 
+        // Incrementamos el contador del usuario
+        $usuario->increment('total_negocios');
+
         return response()->json(['message' => 'Negocio creado exitosamente', 'data' => $negocio], 201);
     }
 
@@ -226,6 +229,10 @@ class NegocioController extends Controller
         }
 
         $negocio->delete();
+
+        // Decrementamos el contador del usuario
+        $id_usuario_count = $negocio->id_usuario;
+        \App\Models\Usuario::where('id', $id_usuario_count)->decrement('total_negocios');
 
         return response()->json(['message' => 'Negocio eliminado exitosamente'], 200);
     }

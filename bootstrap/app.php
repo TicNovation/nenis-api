@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'jwt.admin' => \App\Http\Middleware\JwtAdmin::class,
             'jwt.auth' => \App\Http\Middleware\JwtAuth::class,
             'jwt.usuario' => \App\Http\Middleware\JwtUsuario::class,
+            'check.limits' => \App\Http\Middleware\CheckPlanLimits::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -41,6 +41,7 @@ class MensajeDiarioController extends Controller
             'titulo' => 'nullable|string|max:190',
             'contenido' => 'required|string',
             'autor' => 'nullable|string|max:190',
+            'autor_enlace' => 'nullable|string|max:200',
             'activo' => 'required|boolean',
         ]);
 
@@ -64,6 +65,7 @@ class MensajeDiarioController extends Controller
             'titulo' => 'nullable|string|max:190',
             'contenido' => 'required|string',
             'autor' => 'nullable|string|max:190',
+            'autor_enlace' => 'nullable|string|max:200',
             'activo' => 'required|boolean',
         ]);
 
