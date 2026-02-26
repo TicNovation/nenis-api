@@ -34,6 +34,7 @@ Route::get('buscar-negocios', [PaginaClienteController::class, 'buscarNegocios']
 Route::get('negocios-categoria', [PaginaClienteController::class, 'buscarNegociosPorCategoria']);
 Route::get('negocio/{slug}', [PaginaClienteController::class, 'encontrarNegocio']);
 Route::get('listar-empleos', [PaginaClienteController::class, 'listarEmpleos']);
+Route::post('publicidad/contacto', [PaginaClienteController::class, 'contactoPublicidad'])->middleware('throttle:3,1');
 
 //Rutas públicas
 Route::post('admin/login', [AdminController::class, 'login']);

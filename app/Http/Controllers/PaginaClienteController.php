@@ -13,9 +13,71 @@ use Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Mail\SolicitudPublicidadEmail;
+use Illuminate\Support\Facades\Mail;
 
 class PaginaClienteController extends Controller
 {
+    /**
+     * Maneja el envío del formulario de contacto para publicidad "Anúnciate"
+     */
+    public function contactoPublicidad(Request $request)
+    {
+        // 1. Honeypot Check: Si el campo 'website' viene lleno, es un bot
+        if ($request->filled('website')) {
+            return response()->json(['message' => 'Solicitud procesada correctamente (bot detected)'], 200);
+        }
+
+        // 2. Validación básica
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:100',
+            'correo' => 'required|email|max:100',
+            'telefono' => 'nullable|string|max:20',
+            'nombre_negocio' => 'required|string|max:150',
+            'mensaje' => 'required|string|min:10|max:2000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first()], 400);
+        }
+
+        // 3. Validación de contenido (Escudo anti-spam)
+        $spamKeywords = [
+            'crypto', 'bitcoin', 'ethereum', 'casino', 'betting', 'poker', 'porno', 
+            'sex', 'girls', 'dating', 'viagra', 'cialis', 'earn money', 'work from home',
+            'seo services', 'marketing agency', 'optimization', 'ranking', 'backlinks',
+        ];
+
+        $content = strtolower($request->mensaje);
+        foreach ($spamKeywords as $keyword) {
+            if (str_contains($content, $keyword)) {
+                return response()->json(['message' => 'Tu mensaje contiene contenido no permitido por nuestras políticas de seguridad.'], 403);
+            }
+        }
+
+        // Contar enlaces (bots suelen meter muchos links)
+        if (substr_count($content, 'http') > 2) {
+            return response()->json(['message' => 'Demasiados enlaces detectados.'], 403);
+        }
+
+        // 4. Envío de correo
+        try {
+            // El correo se envía al administrador (puedes configurar esto en el .env)
+            $adminEmail = 'contacto@nuevaeradigital.mx';//config('mail.from.address'); // O un correo específico de ventas
+            
+            Mail::to($adminEmail)->send(new SolicitudPublicidadEmail($request->only([
+                'nombre', 'correo', 'telefono', 'nombre_negocio', 'mensaje'
+            ])));
+
+            return response()->json([
+                'message' => '¡Tu solicitud ha sido enviada con éxito! Nos pondremos en contacto contigo muy pronto.'
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Error enviando correo de publicidad: ' . $e->getMessage());
+            return response()->json(['message' => 'Hubo un error al enviar tu solicitud. Por favor, inténtalo de nuevo más tarde.'], 500);
+        }
+    }
     public function mostrarHome(Request $request)
     {
         $validate = Validator::make($request->all(), [

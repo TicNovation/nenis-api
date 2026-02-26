@@ -29,7 +29,7 @@ class ReporteController extends Controller
             'id_objetivo' => $request->id_objetivo,
             'motivo' => $request->motivo,
             'descripcion' => $request->descripcion,
-            'estatus' => 'pendiente' // Por defecto
+            'estatus' => 'abierto' // Por defecto
         ]);
 
         return response()->json(['message' => 'Reporte enviado exitosamente. Gracias por ayudarnos a mantener la comunidad segura.', 'data' => $reporte], 201);
@@ -89,7 +89,7 @@ class ReporteController extends Controller
     {
         $validate = Validator::make($request->all(), [
             'id' => 'required|integer',
-            'estatus' => 'required|in:pendiente,revision,resuelto,descartado',
+            'estatus' => 'required|in:abierto,en_revision,cerrado,rechazado',
         ]);
 
         if ($validate->fails()) {
