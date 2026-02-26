@@ -23,6 +23,7 @@ class OfertaEmpleo extends Model
         'correo_contacto',
         'telefono_contacto',
         'organizacion_externa',
+        'alcance_visibilidad',
         'id_estado',
         'id_ciudad',
         'es_remoto',
@@ -49,5 +50,32 @@ class OfertaEmpleo extends Model
     public function ciudad()
     {
         return $this->belongsTo(Ciudad::class, 'id_ciudad');
+    }
+
+    /**
+     * Scope para filtrar ofertas por jerarquía de visibilidad (pais, estado, ciudad).
+     */
+    public function scopeVisibilidadJerarquica($query, $id_estado = null, $id_ciudad = null)
+    {
+        return $query->where(function ($q) use ($id_estado, $id_ciudad) {
+            // 1. Nivel País: Siempre visibles
+            $q->where('alcance_visibilidad', 'pais');
+
+            // 2. Nivel Estado: Visible si coincide el estado
+            if ($id_estado) {
+                $q->orWhere(function ($sq) use ($id_estado) {
+                    $sq->where('alcance_visibilidad', 'estado')
+                       ->where('id_estado', $id_estado);
+                });
+            }
+
+            // 3. Nivel Ciudad: Visible si coincide la ciudad
+            if ($id_ciudad) {
+                $q->orWhere(function ($sq) use ($id_ciudad) {
+                    $sq->where('alcance_visibilidad', 'ciudad')
+                       ->where('id_ciudad', $id_ciudad);
+                });
+            }
+        });
     }
 }

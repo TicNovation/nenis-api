@@ -62,7 +62,7 @@ class PaginaClienteController extends Controller
         $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
 
         // 4. Estados para selección manual
-        $estados = Estado::orderBy('nombre', 'ASC')->get();
+        $estados = Estado::with('ciudades')->orderBy('nombre', 'ASC')->get();
 
         $data = [
             'banners' => $banners,
@@ -85,24 +85,34 @@ class PaginaClienteController extends Controller
             return response()->json(['message' => $validator->errors()->first()], 400);
         }
 
-        $slug_estado = Str::slug($request->estado);
-        $slug_ciudad = Str::slug($request->ciudad);
+        $input_estado = $request->estado;
+        $input_ciudad = $request->ciudad;
+        $slug_estado = Str::slug($input_estado);
+        $slug_ciudad = Str::slug($input_ciudad);
 
-        // Buscar estado por slug o nombre
+        // Buscar estado por slug, nombre exacto o coincidencia parcial
         $estado = Estado::where('slug', $slug_estado)
-            ->orWhere('nombre', 'LIKE', "%{$request->estado}%")
+            ->orWhere('nombre', 'LIKE', "%{$input_estado}%")
+            ->orWhereRaw('? LIKE CONCAT("%", nombre, "%")', [$input_estado])
             ->first();
 
         if (!$estado) {
             return response()->json(['message' => 'Estado no encontrado en nuestra base de datos'], 404);
         }
 
-        // Buscar ciudad dentro del estado por slug o nombre
+        // Buscar ciudad dentro del estado de forma inteligente e insensible a acentos/caracteres
         $ciudad = Ciudad::where('id_estado', $estado->id)
-            ->where(function($q) use ($slug_ciudad, $request) {
-                $q->where('slug', $slug_ciudad)
-                  ->orWhere('nombre', 'LIKE', "%{$request->ciudad}%");
+            ->where(function($q) use ($slug_ciudad, $input_ciudad) {
+                // 1. Coincidencia de slug (Normalizado sin acentos/especiales)
+                $q->where('slug', 'LIKE', "%{$slug_ciudad}%")
+                  // 2. Por si el input de Google es más largo: "leon-de-los-aldama" contiene "leon"
+                  ->orWhereRaw('? LIKE CONCAT("%", slug, "%")', [$slug_ciudad])
+                  // 3. Fallback por nombre por si acaso
+                  ->orWhere('nombre', 'LIKE', "%{$input_ciudad}%")
+                  ->orWhereRaw('? LIKE CONCAT("%", nombre, "%")', [$input_ciudad]);
             })
+            // Ordenar por la coincidencia más cercana en longitud para evitar falsos positivos
+            ->orderByRaw('ABS(LENGTH(slug) - LENGTH(?)) ASC', [$slug_ciudad])
             ->first();
 
         if (!$ciudad) {
@@ -195,28 +205,51 @@ class PaginaClienteController extends Controller
     public function buscarNegociosPorCategoria(Request $request)
     {
         $validate = Validator::make($request->all(), [
-            'id_categoria' => 'required|integer',
+            'slug' => 'required|string',
             'id_estado' => 'sometimes|nullable|integer',
             'id_ciudad' => 'sometimes|nullable|integer',
             'por_pagina' => 'sometimes|integer|min:1|max:100',
+            'buscar' => 'sometimes|nullable|string',
         ]);
 
         if ($validate->fails()) {
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
+        $categoria = Categoria::where('slug', $request->slug)->where('activo', 1)->first();
+
+        if (!$categoria) {
+            return response()->json(['message' => 'Categoría no encontrada'], 404);
+        }
+
+        $id_categoria = $categoria->id;
+
         // Obtener subcategorías (colección para reusar y IDs para filtrar)
-        $subcategorias = Categoria::where('id_padre', $request->id_categoria)
+        $subcategorias = Categoria::where('id_padre', $id_categoria)
             ->where('activo', 1)
             ->get();
 
         $ids_categorias = $subcategorias->pluck('id')->toArray();
-        array_push($ids_categorias, $request->id_categoria);
+        array_push($ids_categorias, $id_categoria);
 
         $query = Negocio::where('activo', 1)
             ->where('estatus', 'publicado')
             ->where('estatus_verificacion', 'verificado')
             ->visibilidadJerarquica($request->id_estado, $request->id_ciudad);
+
+        // Búsqueda por palabra clave si existe
+        if ($request->filled('buscar')) {
+            $busqueda = $request->buscar;
+            $busqueda_limpia = $this->normalizarTexto($busqueda);
+            $busqueda_sql = str_replace(' ', '%', $busqueda_limpia);
+
+            $query->where(function ($q) use ($busqueda, $busqueda_sql) {
+                $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                    ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                    ->orWhere('slogan', 'LIKE', "%{$busqueda}%")
+                    ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql}%");
+            });
+        }
 
         // Filtrar por categorías (Principal o Secundarias)
         $query->where(function ($q) use ($ids_categorias) {
@@ -254,17 +287,9 @@ class PaginaClienteController extends Controller
         return response()->json(['data' => $data], 200);
     }
 
-    public function encontrarNegocio(Request $request)
+    public function encontrarNegocio(Request $request, $slug)
     {
-        $validator = Validator::make($request->all(), [
-            'slug' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['message' => $validator->errors()->first()], 400);
-        }
-
-        $negocio = Negocio::where('slug', $request->slug)
+        $negocio = Negocio::where('slug', $slug)
             ->where('activo', 1)
             ->where('estatus', 'publicado')
             ->with([
@@ -304,5 +329,25 @@ class PaginaClienteController extends Controller
         $negocio->increment('total_vistas');
 
         return response()->json(['data' => $negocio], 200);
+    }
+
+    public function listarEmpleos(Request $request)
+    {
+        $id_estado = $request->id_estado;
+        $id_ciudad = $request->id_ciudad;
+
+        $query = \App\Models\OfertaEmpleo::where('activo', 1)
+            ->where('estatus', 'activo')
+            ->where(function($q) {
+                $q->whereNull('expira_en')
+                  ->orWhere('expira_en', '>', \Carbon\Carbon::now());
+            })
+            ->visibilidadJerarquica($id_estado, $id_ciudad)
+            ->with(['negocio', 'estado', 'ciudad'])
+            ->orderBy('created_at', 'DESC');
+
+        $empleos = $query->paginate($request->por_pagina ?? 15);
+
+        return response()->json(['data' => $empleos], 200);
     }
 }
