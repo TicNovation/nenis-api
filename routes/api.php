@@ -150,7 +150,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 
     // Planes disponibles
     Route::get('planes/disponibles', [PlanController::class, 'listarActivos']);
-    Route::get('usuario/perfil', [UsuarioController::class, 'perfil']);
+    Route::match(['get', 'post'], 'usuario/perfil', [UsuarioController::class, 'perfil']);
     Route::get('categoria/listar', [CategoriaController::class, 'listar']);
     Route::post('usuario/cambiar-plan', [UsuarioController::class, 'cambiarPlan']);
     Route::post('usuario/renovar-plan', [UsuarioController::class, 'renovarPlan']);
