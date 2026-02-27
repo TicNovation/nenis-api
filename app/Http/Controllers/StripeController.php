@@ -12,6 +12,7 @@ use Validator;
 use Carbon\Carbon;
 use App\Models\Negocio;
 use App\Models\PlanPrecio;
+use Illuminate\Support\Facades\Log;
 
 class StripeController extends Controller
 {
@@ -86,14 +87,18 @@ class StripeController extends Controller
             $event = \Stripe\Webhook::constructEvent(
                 $payload, $sig_header, $endpoint_secret
             );
+            Log::info("Stripe Webhook Recibido: " . $event->type);
         } catch (\UnexpectedValueException $e) {
+            Log::error("Stripe Webhook Error: Invalid Payload");
             return response()->json(['message' => 'Invalid payload'], 400);
         } catch (\Stripe\Exception\SignatureVerificationException $e) {
+            Log::error("Stripe Webhook Error: Invalid Signature");
             return response()->json(['message' => 'Invalid signature'], 400);
         }
 
         if ($event->type == 'checkout.session.completed') {
             $session = $event->data->object;
+            Log::info("Checkout Session Completed detectado. Session ID: " . $session->id);
             $this->procesarPagoExitoso($session);
         }
 
@@ -103,14 +108,20 @@ class StripeController extends Controller
     private function procesarPagoExitoso($session)
     {
         $metadata = $session->metadata;
-        $usuario_id = $metadata->usuario_id;
-        $plan_id = $metadata->plan_id;
-        $meses = $metadata->meses;
+        Log::info("Procesando pago exitoso. Metadata: " . json_encode($metadata));
+
+        $usuario_id = $metadata->usuario_id ?? null;
+        $plan_id = $metadata->plan_id ?? null;
+        $meses = $metadata->meses ?? null;
+
+        Log::info("Datos extraídos - Usuario: $usuario_id, Plan: $plan_id, Meses: $meses");
 
         $usuario = Usuario::find($usuario_id);
         $plan = Plan::find($plan_id);
 
         if ($usuario && $plan) {
+            Log::info("Usuario ({$usuario->nombre}) y Plan ({$plan->nombre}) encontrados. Actualizando...");
+            
             // 1. Verificar si tiene una membresía activa para sumar días si es el mismo plan
             $membresiaActual = Membresia::where('id_usuario', $usuario->id)
                 ->where('estatus', 'activo')
@@ -122,6 +133,7 @@ class StripeController extends Controller
 
             // Si es renovación del mismo plan, sumamos los meses a la fecha de fin actual
             if ($membresiaActual && $membresiaActual->id_plan == $plan->id) {
+                Log::info("Es renovación del mismo plan. Sumando al periodo actual que vence en: " . $membresiaActual->fin_en);
                 $fin = Carbon::parse($membresiaActual->fin_en)->addMonths($meses);
             }
 
@@ -131,7 +143,7 @@ class StripeController extends Controller
                 ->update(['estatus' => 'cancelado']);
 
             // 2. Crear nueva membresía
-            Membresia::create([
+            $nuevaMembresia = Membresia::create([
                 'id_usuario' => $usuario->id,
                 'id_plan' => $plan->id,
                 'stripe_pago_id' => $session->payment_intent ?? $session->id,
@@ -143,6 +155,8 @@ class StripeController extends Controller
                 'estatus' => 'activo',
             ]);
 
+            Log::info("Nueva membresía creada ID: " . $nuevaMembresia->id . " vence en: " . $fin);
+
             // 3. Actualizar usuario
             $usuario->id_plan_activo = $plan->id; 
             $usuario->max_alcance_visibilidad = $plan->max_alcance_visibilidad;
@@ -151,6 +165,8 @@ class StripeController extends Controller
             $usuario->destacado_titulo_cache = $plan->nombre;
             $usuario->save();
 
+            Log::info("Usuario actualizado a plan: " . $plan->nombre);
+
             // 4. Sincronizar negocios
             Negocio::where('id_usuario', $usuario->id)->update([
                 'destacado_cache' => $usuario->destacado_cache,
@@ -158,6 +174,9 @@ class StripeController extends Controller
                 'alcance_visibilidad' => $usuario->max_alcance_visibilidad,
                 'prioridad_cache' => $usuario->prioridad_cache,
             ]);
+            Log::info("Negocios sincronizados.");
+        } else {
+            Log::warning("No se pudo procesar el pago: Usuario o Plan no encontrados. Metadata: " . json_encode($metadata));
         }
     }
 }
