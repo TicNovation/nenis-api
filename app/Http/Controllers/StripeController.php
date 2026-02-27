@@ -78,8 +78,8 @@ class StripeController extends Controller
         Stripe::setApiKey(config('services.stripe.secret'));
         $endpoint_secret = config('services.stripe.webhook_secret');
 
-        $payload = @file_get_contents('php://input');
-        $sig_header = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+        $payload = $request->getContent();
+        $sig_header = $request->header('Stripe-Signature');
         $event = null;
 
         try {
@@ -111,13 +111,26 @@ class StripeController extends Controller
         $plan = Plan::find($plan_id);
 
         if ($usuario && $plan) {
-            // 1. Cancelar membresías activas anteriores
+            // 1. Verificar si tiene una membresía activa para sumar días si es el mismo plan
+            $membresiaActual = Membresia::where('id_usuario', $usuario->id)
+                ->where('estatus', 'activo')
+                ->where('fin_en', '>', Carbon::now())
+                ->first();
+
+            $inicio = Carbon::now();
+            $fin = (clone $inicio)->addMonths($meses);
+
+            // Si es renovación del mismo plan, sumamos los meses a la fecha de fin actual
+            if ($membresiaActual && $membresiaActual->id_plan == $plan->id) {
+                $fin = Carbon::parse($membresiaActual->fin_en)->addMonths($meses);
+            }
+
+            // Cancelar membresías activas anteriores (incluyendo la actual si existía)
             Membresia::where('id_usuario', $usuario->id)
                 ->where('estatus', 'activo')
                 ->update(['estatus' => 'cancelado']);
 
             // 2. Crear nueva membresía
-            $inicio = Carbon::now();
             Membresia::create([
                 'id_usuario' => $usuario->id,
                 'id_plan' => $plan->id,
@@ -126,7 +139,7 @@ class StripeController extends Controller
                 'meses_comprados' => $meses,
                 'monto_pagado' => $session->amount_total / 100,
                 'inicio_en' => $inicio,
-                'fin_en' => (clone $inicio)->addMonths($meses),
+                'fin_en' => $fin,
                 'estatus' => 'activo',
             ]);
 
