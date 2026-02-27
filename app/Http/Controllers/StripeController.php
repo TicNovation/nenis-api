@@ -110,11 +110,11 @@ class StripeController extends Controller
         $metadata = $session->metadata;
         Log::info("Procesando pago exitoso. Metadata: " . json_encode($metadata));
 
-        $usuario_id = $metadata->usuario_id ?? null;
-        $plan_id = $metadata->plan_id ?? null;
-        $meses = $metadata->meses ?? null;
+        $usuario_id = isset($metadata->usuario_id) ? (int)$metadata->usuario_id : null;
+        $plan_id = isset($metadata->plan_id) ? (int)$metadata->plan_id : null;
+        $meses = isset($metadata->meses) ? (int)$metadata->meses : 0;
 
-        Log::info("Datos extraídos - Usuario: $usuario_id, Plan: $plan_id, Meses: $meses");
+        Log::info("Datos extraídos (casteados) - Usuario: $usuario_id, Plan: $plan_id, Meses: $meses");
 
         $usuario = Usuario::find($usuario_id);
         $plan = Plan::find($plan_id);
