@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Categoria;
 use Validator;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class CategoriaController extends Controller
 {
@@ -14,15 +15,18 @@ class CategoriaController extends Controller
      */
     public function listar(Request $request)
     {
-        $type = $request->attributes->get('auth_type');
+        $type = $request->attributes->get('auth_type') ?? 'public';
         
-        $query = Categoria::with('padre');
-        
-        if ($type !== 'admin') {
-            $query->where('activo', 1);
-        }
+        $categorias = Cache::remember("categorias_all_{$type}", 86400, function() use ($type) {
+            $query = Categoria::with('padre');
+            
+            if ($type !== 'admin') {
+                $query->where('activo', 1);
+            }
 
-        $categorias = $query->get();
+            return $query->get();
+        });
+
         return response()->json(['data' => $categorias], 200);
     }
 
@@ -68,6 +72,10 @@ class CategoriaController extends Controller
 
         $categoria->save();
 
+        // Limpiar caché
+        Cache::forget("categorias_all_public");
+        Cache::forget("categorias_all_admin");
+
         return response()->json(['message' => 'Categoría creada exitosamente', 'data' => $categoria], 201);
     }
 
@@ -108,6 +116,10 @@ class CategoriaController extends Controller
 
         $categoria->save();
 
+        // Limpiar caché
+        Cache::forget("categorias_all_public");
+        Cache::forget("categorias_all_admin");
+
         return response()->json(['message' => 'Categoría actualizada exitosamente', 'data' => $categoria], 200);
     }
 
@@ -133,6 +145,10 @@ class CategoriaController extends Controller
         $categoria->activo = 0;
         $categoria->save();
 
+        // Limpiar caché
+        Cache::forget("categorias_all_public");
+        Cache::forget("categorias_all_admin");
+
         return response()->json(['message' => 'Categoría desactivada exitosamente'], 200);
     }
 
@@ -157,6 +173,10 @@ class CategoriaController extends Controller
 
         $categoria->activo = 1;
         $categoria->save();
+
+        // Limpiar caché
+        Cache::forget("categorias_all_public");
+        Cache::forget("categorias_all_admin");
 
         return response()->json(['message' => 'Categoría activada exitosamente'], 200);
     }

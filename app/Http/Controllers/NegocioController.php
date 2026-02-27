@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Negocio;
 use Validator;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
 class NegocioController extends Controller
 {
@@ -184,6 +185,9 @@ class NegocioController extends Controller
             }
         }
 
+        // Limpiar caché del perfil público
+        Cache::forget("negocio_perfil_{$negocio->slug}");
+
         return response()->json(['message' => 'Negocio actualizado exitosamente', 'data' => $negocio], 200);
     }
 
@@ -277,6 +281,9 @@ class NegocioController extends Controller
         }
 
         $negocio->save();
+
+        // Limpiar caché del perfil público
+        Cache::forget("negocio_perfil_{$negocio->slug}");
 
         return response()->json(['message' => 'Estatus de negocio actualizado', 'data' => $negocio], 200);
     }

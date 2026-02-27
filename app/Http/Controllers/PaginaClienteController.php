@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Mail\SolicitudPublicidadEmail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 
 class PaginaClienteController extends Controller
 {
@@ -92,16 +93,40 @@ class PaginaClienteController extends Controller
         $id_estado = $request->id_estado;
         $id_ciudad = $request->id_ciudad;
 
-        // 1. Banners con jerarquía
-        $banners = Banner::alcance($id_estado, $id_ciudad)->get();
+        // Intentamos obtener los datos de caché (1 hora)
+        $cacheKey = "home_data_e{$id_estado}_c{$id_ciudad}";
+        
+        $data = Cache::remember($cacheKey, 3600, function() use ($id_estado, $id_ciudad) {
+            // 1. Banners con jerarquía
+            $banners = Banner::alcance($id_estado, $id_ciudad)->get();
 
-        // 1.1 Registrar impresiones eficientemente en un solo query (Batch Insert / Update)
-        if ($banners->isNotEmpty()) {
+            // 2. Categorías padre
+            $categorias = Categoria::where('activo', 1)
+                ->whereNull('id_padre')
+                ->inRandomOrder()
+                ->get();
+
+            // 3. Mensajes diarios (Nota: Al cachear, el random se fijará por 1 hora)
+            $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
+
+            // 4. Estados para selección manual
+            $estados = Estado::with('ciudades')->orderBy('nombre', 'ASC')->get();
+
+            return [
+                'banners' => $banners,
+                'categorias' => $categorias,
+                'mensajes' => $mensajes,
+                'estados' => $estados,
+            ];
+        });
+
+        // 1.1 Registrar impresiones (FUERA DEL CACHÉ para que cuente cada visita)
+        if (!empty($data['banners']) && count($data['banners']) > 0) {
             $hoy = Carbon::now()->toDateString();
             $values = [];
             $bindings = [];
             
-            foreach ($banners as $banner) {
+            foreach ($data['banners'] as $banner) {
                 $values[] = "(?, ?, 1, 0)";
                 $bindings[] = $banner->id;
                 $bindings[] = $hoy;
@@ -115,25 +140,10 @@ class PaginaClienteController extends Controller
             ", $bindings);
         }
 
-        // 2. Categorías padre
-        $categorias = Categoria::where('activo', 1)
-            ->whereNull('id_padre')
-            ->get();
-
-        // 3. Mensajes diarios
-        $mensajes = MensajeDiario::where('activo', 1)->inRandomOrder()->limit(20)->get();
-
-        // 4. Estados para selección manual
-        $estados = Estado::with('ciudades')->orderBy('nombre', 'ASC')->get();
-
-        $data = [
-            'banners' => $banners,
-            'categorias' => $categorias,
-            'mensajes' => $mensajes,
-            'estados' => $estados,
-        ];
-
-        return response()->json(['data' => $data], 200);
+        return response()->json(['data' => $data], 200)
+            ->setPublic()
+            ->setMaxAge(60)
+            ->setEtag(md5(json_encode($data)));
     }
 
     public function obtenerUbicacion(Request $request)
@@ -201,9 +211,15 @@ class PaginaClienteController extends Controller
             return response()->json(['message' => $validator->errors()->first()], 400);
         }
 
-        $ciudades = Ciudad::where('id_estado', $request->id_estado)->orderBy('nombre', 'ASC')->get();
+        $id_estado = $request->id_estado;
+        
+        $ciudades = Cache::remember("ciudades_estado_{$id_estado}", 86400, function() use ($id_estado) {
+            return Ciudad::where('id_estado', $id_estado)->orderBy('nombre', 'ASC')->get();
+        });
 
-        return response()->json(['data' => $ciudades], 200);
+        return response()->json(['data' => $ciudades], 200)
+            ->setPublic()
+            ->setMaxAge(86400); // 24 horas, las ciudades no cambian diario
     }
 
     /**
@@ -272,125 +288,149 @@ class PaginaClienteController extends Controller
             'id_ciudad' => 'sometimes|nullable|integer',
             'por_pagina' => 'sometimes|integer|min:1|max:100',
             'buscar' => 'sometimes|nullable|string',
+            'page' => 'sometimes|integer',
         ]);
 
         if ($validate->fails()) {
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $categoria = Categoria::where('slug', $request->slug)->where('activo', 1)->first();
+        $slug_cat = $request->slug;
+        $id_estado = $request->id_estado;
+        $id_ciudad = $request->id_ciudad;
+        $page = $request->page ?? 1;
+        $buscar = $request->buscar ?? '';
+        $por_pagina = $request->input('por_pagina', 100);
 
-        if (!$categoria) {
+        $cacheKey = "search_cat_{$slug_cat}_e{$id_estado}_c{$id_ciudad}_b{$buscar}_pp{$por_pagina}_p{$page}";
+
+        $data = Cache::remember($cacheKey, 1800, function() use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina) {
+            $categoria = Categoria::where('slug', $slug_cat)->where('activo', 1)->first();
+
+            if (!$categoria) {
+                return null;
+            }
+
+            $id_categoria = $categoria->id;
+
+            // Obtener subcategorías
+            $subcategorias = Categoria::where('id_padre', $id_categoria)
+                ->where('activo', 1)
+                ->get();
+
+            $ids_categorias = $subcategorias->pluck('id')->toArray();
+            array_push($ids_categorias, $id_categoria);
+
+            $query = Negocio::where('activo', 1)
+                ->where('estatus', 'publicado')
+                ->where('estatus_verificacion', 'verificado')
+                ->visibilidadJerarquica($id_estado, $id_ciudad);
+
+            // Búsqueda por palabra clave si existe
+            if ($request->filled('buscar')) {
+                $busqueda = $request->buscar;
+                $busqueda_limpia = $this->normalizarTexto($busqueda);
+                $busqueda_sql = str_replace(' ', '%', $busqueda_limpia);
+
+                $query->where(function ($q) use ($busqueda, $busqueda_sql) {
+                    $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('slogan', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql}%");
+                });
+            }
+
+            // Filtrar por categorías
+            $query->where(function ($q) use ($ids_categorias) {
+                $q->whereIn('id_categoria_principal', $ids_categorias)
+                  ->orWhereHas('categorias', function ($sq) use ($ids_categorias) {
+                      $sq->whereIn('id_categoria', $ids_categorias);
+                  });
+            });
+
+            $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+                    $q->where('activo', 1)->with(['estado', 'ciudad']);
+                }])
+                ->orderBy('prioridad_cache', 'DESC')
+                ->paginate($por_pagina);
+
+            $negocios->getCollection()->transform(function ($negocio) {
+                foreach ($negocio->sucursales as $sucursal) {
+                    if ($sucursal->visibilidad_direccion !== 'completa') {
+                        $sucursal->direccion_texto = null;
+                        $sucursal->codigo_postal = null;
+                        $sucursal->lat = null;
+                        $sucursal->lng = null;
+                    }
+                }
+                return $negocio;
+            });
+
+            return [
+                'categoria' => $categoria,
+                'subcategorias' => $subcategorias,
+                'negocios' => $negocios,
+            ];
+        });
+
+        if (!$data) {
             return response()->json(['message' => 'Categoría no encontrada'], 404);
         }
 
-        $id_categoria = $categoria->id;
-
-        // Obtener subcategorías (colección para reusar y IDs para filtrar)
-        $subcategorias = Categoria::where('id_padre', $id_categoria)
-            ->where('activo', 1)
-            ->get();
-
-        $ids_categorias = $subcategorias->pluck('id')->toArray();
-        array_push($ids_categorias, $id_categoria);
-
-        $query = Negocio::where('activo', 1)
-            ->where('estatus', 'publicado')
-            ->where('estatus_verificacion', 'verificado')
-            ->visibilidadJerarquica($request->id_estado, $request->id_ciudad);
-
-        // Búsqueda por palabra clave si existe
-        if ($request->filled('buscar')) {
-            $busqueda = $request->buscar;
-            $busqueda_limpia = $this->normalizarTexto($busqueda);
-            $busqueda_sql = str_replace(' ', '%', $busqueda_limpia);
-
-            $query->where(function ($q) use ($busqueda, $busqueda_sql) {
-                $q->where('nombre', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('slogan', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql}%");
-            });
-        }
-
-        // Filtrar por categorías (Principal o Secundarias)
-        $query->where(function ($q) use ($ids_categorias) {
-            $q->whereIn('id_categoria_principal', $ids_categorias)
-              ->orWhereHas('categorias', function ($sq) use ($ids_categorias) {
-                  $sq->whereIn('id_categoria', $ids_categorias);
-              });
-        });
-
-
-        $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
-                $q->where('activo', 1)->with(['estado', 'ciudad']);
-            }])
-            ->orderBy('prioridad_cache', 'DESC')
-            ->paginate($request->input('por_pagina', 100));
-
-        $negocios->getCollection()->transform(function ($negocio) {
-            foreach ($negocio->sucursales as $sucursal) {
-                if ($sucursal->visibilidad_direccion !== 'completa') {
-                    $sucursal->direccion_texto = null;
-                    $sucursal->codigo_postal = null;
-                    $sucursal->lat = null;
-                    $sucursal->lng = null;
-                }
-            }
-            return $negocio;
-        });
-
-        $data = [
-            'categoria' => Categoria::find($request->id_categoria),
-            'subcategorias' => $subcategorias,
-            'negocios' => $negocios,
-        ];
-
-        return response()->json(['data' => $data], 200);
+        return response()->json(['data' => $data], 200)
+            ->setPublic()
+            ->setMaxAge(300); // 5 minutos para búsquedas por categoría
     }
 
     public function encontrarNegocio(Request $request, $slug)
     {
-        $negocio = Negocio::where('slug', $slug)
-            ->where('activo', 1)
-            ->where('estatus', 'publicado')
-            ->with([
-                'imagenes' => function($q) {
-                    $q->where('activo', 1);
-                },
-                'items' => function($q) {
-                    $q->where('activo', 1)->with(['imagenes' => function($sq) {
-                        $sq->where('activo', 1);
-                    }]);
-                },
-                'sucursales' => function($q) {
-                    $q->where('activo', 1)->with(['horarios', 'estado', 'ciudad']);
-                },
-                'categoriaPrincipal'
-            ])
-            ->first();
+        $negocio = Cache::remember("negocio_perfil_{$slug}", 3600, function() use ($slug) {
+            $n = Negocio::where('slug', $slug)
+                ->where('activo', 1)
+                ->where('estatus', 'publicado')
+                ->with([
+                    'imagenes' => function($q) {
+                        $q->where('activo', 1);
+                    },
+                    'items' => function($q) {
+                        $q->where('activo', 1)->with(['imagenes' => function($sq) {
+                            $sq->where('activo', 1);
+                        }]);
+                    },
+                    'sucursales' => function($q) {
+                        $q->where('activo', 1)->with(['horarios', 'estado', 'ciudad']);
+                    },
+                    'categoriaPrincipal'
+                ])
+                ->first();
+
+            if ($n) {
+                foreach ($n->sucursales as $sucursal) {
+                    if ($sucursal->visibilidad_direccion !== 'completa') {
+                        $sucursal->direccion_texto = null;
+                        $sucursal->codigo_postal = null;
+                        $sucursal->lat = null;
+                        $sucursal->lng = null;
+                    }
+                }
+                // Renombrar items a productos para el front-end
+                $n->setRelation('productos', $n->items);
+                $n->unsetRelation('items');
+            }
+            return $n;
+        });
 
         if (!$negocio) {
             return response()->json(['message' => 'Negocio no encontrado'], 404);
         }
 
-        foreach ($negocio->sucursales as $sucursal) {
-            if ($sucursal->visibilidad_direccion !== 'completa') {
-                $sucursal->direccion_texto = null;
-                $sucursal->codigo_postal = null;
-                $sucursal->lat = null;
-                $sucursal->lng = null;
-            }
-        }
+        // Incrementar vistas (Fuera del caché)
+        // Usamos query builder para no ensuciar el objeto cacheado ni disparar eventos innecesarios
+        DB::table('negocios')->where('id', $negocio->id)->increment('total_vistas');
 
-        // Renombrar items a productos para el front-end
-        $negocio->setRelation('productos', $negocio->items);
-        $negocio->unsetRelation('items');
-
-        // Incrementar vistas
-        $negocio->increment('total_vistas');
-
-        return response()->json(['data' => $negocio], 200);
+        return response()->json(['data' => $negocio], 200)
+            ->setPublic()
+            ->setMaxAge(600); // 10 minutos para el perfil de negocio en el navegador
     }
 
     public function listarEmpleos(Request $request)
@@ -402,7 +442,7 @@ class PaginaClienteController extends Controller
             ->where('estatus', 'activo')
             ->where(function($q) {
                 $q->whereNull('expira_en')
-                  ->orWhere('expira_en', '>', \Carbon\Carbon::now());
+                  ->orWhere('expira_en', '>',Carbon::now());
             })
             ->visibilidadJerarquica($id_estado, $id_ciudad)
             ->with(['negocio', 'estado', 'ciudad'])
