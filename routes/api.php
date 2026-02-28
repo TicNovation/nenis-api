@@ -25,6 +25,8 @@ use App\Http\Controllers\OfertaEmpleoController;
 use App\Http\Controllers\SolicitudSoporteController;
 use App\Http\Controllers\StripeController;
 use App\Http\Controllers\PlanPrecioController;
+use App\Http\Controllers\KbArticleController;
+use App\Http\Controllers\ChatAiController;
 
 // Rutas públicas de la Página del Cliente
 Route::get('home', [PaginaClienteController::class, 'mostrarHome']);
@@ -45,6 +47,7 @@ Route::post('usuario/recuperar-password', [UsuarioController::class, 'recuperarP
 Route::post('reporte/crear', [ReporteController::class, 'crear']);
 Route::post('banner/clic', [BannerStatDiariaController::class, 'registrarClic']);
 Route::post('stripe/webhook', [StripeController::class, 'webhook']);
+Route::post('chat', [ChatAiController::class, 'chat']);
 
 //Rutas cliente final
 
@@ -133,6 +136,13 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::get('admin/negocio/listar', [NegocioController::class, 'listarAdmin']);
     Route::post('admin/negocio/verificar', [NegocioController::class, 'verificar']);
     Route::post('admin/negocio/eliminar', [NegocioController::class, 'eliminarAdmin']);
+
+    // Knowledge Base (IA)
+    Route::get('kb/listar', [KbArticleController::class, 'listar']);
+    Route::post('kb/crear', [KbArticleController::class, 'crear']);
+    Route::post('kb/actualizar', [KbArticleController::class, 'actualizar']);
+    Route::post('kb/eliminar', [KbArticleController::class, 'eliminar']);
+    Route::get('kb/encontrar/{id}', [KbArticleController::class, 'encontrar']);
 
 });
 

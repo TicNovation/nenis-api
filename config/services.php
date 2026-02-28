@@ -40,5 +40,13 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         'admin_panel_url' => env('ADMIN_PANEL_URL'),
     ],
+    'iaprovider' => [
+        'deepseek' => [
+            'key' => env('DEEPSEEK_API_KEY'),
+            'base_url' => env('DEEPSEEK_BASE_URL'),
+        ],
+    ],
+
+
 
 ];
