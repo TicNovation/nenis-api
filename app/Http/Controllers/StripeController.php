@@ -134,9 +134,16 @@ class StripeController extends Controller
         Log::info("Clase del objeto: " . get_class($object));
         Log::info("ID del objeto: " . ($object->id ?? 'N/A'));
         
-        // Convertimos el objeto metadata a array para mayor seguridad al leer
-        $metadata = (array)($object->metadata ?? []);
-        Log::info("Contenido Metadata Raw (JSON): " . json_encode($metadata));
+        // 🏗️ EXTRACCIÓN LIMPIA: El SDK de Stripe tiene objetos con propiedades internas (_values).
+        // Usamos toArray() si está disponible o una conversión limpia para evitar basura del SDK.
+        $metadata = [];
+        if (isset($object->metadata)) {
+            $metadata = method_exists($object->metadata, 'toArray') 
+                ? $object->metadata->toArray() 
+                : json_decode(json_encode($object->metadata), true);
+        }
+
+        Log::info("Contenido Metadata Limpio: " . json_encode($metadata));
         
         // 🏗️ EXTRACCIÓN ROBUSTA: Intentamos varios caminos para el id_usuario
         $usuario_id = $metadata['usuario_id'] ?? null;
