@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Exception;
 
 class ChatAiController extends Controller
@@ -28,14 +30,12 @@ class ChatAiController extends Controller
             $sessionId = $data['session_id'] ?? 'web-'.Str::random(10);
             $isAdmin = $data['is_admin'] ?? false;
             $plan = 'basic';
+            $user = null;
 
-            // 1. IMMEDIATE LOG TO ORIONIA (INPUT)
-            // Log user message as soon as it arrives
-            $this->logToOrionia($sessionId, $message, 'input');
-
-            // 2. Try to get authenticated user and their active plan
+            // 1. GET USER AND PLAN
             try {
-                if ($user = auth('api')->user()) {
+                $user = auth('api')->user();
+                if ($user) {
                     $negocio = \App\Models\Negocio::where('id_usuario', $user->id)->first();
                     if ($negocio) {
                         $plan = strtolower($negocio->plan ?? 'basic');
@@ -43,31 +43,91 @@ class ChatAiController extends Controller
                 }
             } catch (Exception $authEx) { }
 
-            // 3. Detect Intent / Find relevant KB articles
+            // 2. RATE LIMITING (Prevention of abuse)
+            $rateLimitKey = $user ? "chat_user_{$user->id}" : "chat_ip_" . ($data['fingerprint'] ?? $request->ip());
+            
+            // Define limits based on plan
+            $maxAttempts = 5; // Default for guests
+            if ($isAdmin) $maxAttempts = 1000;
+            elseif ($plan === 'elite' || $plan === 'diamante') $maxAttempts = 200;
+            elseif ($plan === 'pro') $maxAttempts = 50;
+            elseif ($user) $maxAttempts = 15; // Basic/Authenticated
+
+            if (RateLimiter::tooManyAttempts($rateLimitKey, $maxAttempts)) {
+                $seconds = RateLimiter::availableIn($rateLimitKey);
+                
+                $fallbackMessage = "🌸 **¡Hola!** En este momento no puedo analizar a fondo tu solicitud porque has alcanzado el límite de consultas diarias para tu plan ($plan).\n\n" .
+                    "Sin embargo, aquí tienes información útil que podría ayudarte de inmediato:\n\n" .
+                    "📜 **Legal y Políticas:**\n" .
+                    "• [Términos y Condiciones](REEMPLAZAR_POR_URL_TERMINOS)\n" .
+                    "• [Políticas de Privacidad](REEMPLAZAR_POR_URL_PRIVACIDAD)\n\n" .
+                    "📞 **Contacto y Soporte:**\n" .
+                    "• WhatsApp: [Escribir a Soporte](https://wa.me/REEMPLAZAR_POR_NUMERO)\n" .
+                    "• Correo: REEMPLAZAR_POR_CORREO\n\n" .
+                    "📱 **Síguenos:**\n" .
+                    "• [Instagram](REEMPLAZAR_POR_INSTAGRAM)\n" .
+                    "• [Facebook](REEMPLAZAR_POR_FACEBOOK)\n\n" .
+                    "Podrás volver a consultarme en aproximadamente **" . ceil($seconds / 60) . " minutos**. ¡Gracias por ser parte de Nenis!";
+
+                return response()->json([
+                    'reply' => $fallbackMessage,
+                    'suggestions' => $this->getSuggestedChips(collect([]), $isAdmin, $plan), // Sugerencias iniciales
+                    'limit_reached' => true
+                ], 429);
+            }
+            RateLimiter::hit($rateLimitKey, 86400); // 1 day window
+
+            // 3. CACHING (Efficiency)
+            $normalizedMessage = Str::lower(trim(preg_replace('/[^a-zA-Z0-9\s]/', '', $message)));
+            $cacheKey = "ai_answer_" . md5($normalizedMessage);
+            
+            if (!$isAdmin && Cache::has($cacheKey)) {
+                $cachedData = Cache::get($cacheKey);
+                // Log input only (output is cached)
+                $this->logToOrionia($sessionId, $message, 'input');
+                $this->logToOrionia($sessionId, $cachedData['reply'] . " (CACHED)", 'output');
+
+                return response()->json(array_merge($cachedData, [
+                    'plan_detected' => $plan,
+                    'is_cached' => true
+                ]), 200);
+            }
+
+            // 4. IMMEDIATE LOG TO ORIONIA (INPUT)
+            $this->logToOrionia($sessionId, $message, 'input');
+
+            // 5. Detect Intent / Find relevant KB articles
             $kbArticles = $this->searchKnowledgeBase($message);
             
-            // 4. Prepare context for AI
+            // 6. Prepare context for AI
             $context = $this->preparePromptContext($kbArticles);
             
-            // 5. Call DeepSeek (This is the "thinking" part)
+            // 7. Call DeepSeek (This is the "thinking" part)
             $aiResponse = $this->callDeepSeek($message, $context, $isAdmin);
             
-            // 6. LOG TO ORIONIA (OUTPUT)
-            // Log AI response once calculated
+            // 8. LOG TO ORIONIA (OUTPUT)
             $this->logToOrionia($sessionId, $aiResponse, 'output');
 
-            // 7. Detect next suggested chips
+            // 9. Detect next suggested chips
             $suggestions = $this->getSuggestedChips($kbArticles, $isAdmin, $plan);
 
-            return response()->json([
+            $responseData = [
                 'reply' => $aiResponse,
                 'suggestions' => $suggestions,
-                'plan_detected' => $plan,
                 'sources' => $kbArticles->map(fn($art) => [
                     'titulo' => $art->titulo,
                     'link' => $art->link_fuente
                 ])->filter(fn($s) => $s['link'])->values()
-            ], 200);
+            ];
+
+            // Store in Cache - Only store responses that are meaningful
+            if (!$isAdmin && strlen($aiResponse) > 15) {
+                Cache::put($cacheKey, $responseData, now()->addDays(7));
+            }
+
+            return response()->json(array_merge($responseData, [
+                'plan_detected' => $plan
+            ]), 200);
 
         } catch (Exception $e) {
             Log::error('ChatAI Error: ' . $e->getMessage());
