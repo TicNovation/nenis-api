@@ -122,34 +122,45 @@ class StripeController extends Controller
 
     private function crearTicketPorFallo($object, $titulo)
     {
-        // En Stripe, la metadata puede venir como objeto o array dependiendo del contexto del SDK
-        $metadata = $object->metadata ?? [];
+        // 🔍 DEBUG: Logueamos el objeto completo para ver su estructura real en producción
+        Log::info("---------- STRIPE DEBUG START ({$titulo}) ----------");
+        Log::info("Clase del objeto: " . get_class($object));
+        Log::info("ID del objeto: " . ($object->id ?? 'N/A'));
+        Log::info("Contenido Metadata Raw: " . json_encode($object->metadata ?? []));
         
-        // Intentar extraer el ID de usuario (asegurarnos que sea el valor plano)
+        // 🏗️ EXTRACCIÓN ROBUSTA: Intentamos varios caminos para el id_usuario
         $usuario_id = null;
-        if (is_array($metadata)) {
-            $usuario_id = $metadata['usuario_id'] ?? null;
-        } elseif (is_object($metadata)) {
-            $usuario_id = $metadata->usuario_id ?? null;
-        }
 
-        // Si por alguna razón sigue siendo null (ej: evento sin metadata), 
-        // lo registramos como null en la BD si la columna lo permite, o ponemos un valor por defecto si es requerido.
-        // Dado el error SQLSTATE[23000], la columna id_usuario NO permite nulls. 
-        // Usaremos 0 o un ID de sistema si no viene, pero lo ideal es que siempre venga.
+        // Camino 1: Directo desde el objeto si el SDK lo mapeó
+        if (isset($object->metadata->usuario_id)) {
+            $usuario_id = $object->metadata->usuario_id;
+        } 
+        // Camino 2: Si viene como array (común en algunas versiones del SDK)
+        elseif (isset($object->metadata['usuario_id'])) {
+            $usuario_id = $object->metadata['usuario_id'];
+        }
+        // Camino 3: Si el objeto es un PaymentIntent y el id está en el cargo relacionado (si existiera)
         
+        Log::info("ID Usuario detectado: " . ($usuario_id ?? 'NULL'));
+        Log::info("---------- STRIPE DEBUG END ----------");
+
+        // IMPORTANTE: Si id_usuario sigue siendo NULL, la BD va a tronar (SQL 23000).
+        // Usaremos el ID 1 (o el que consideres tu Admin/Sistema) como fallback SEGURO.
+        $final_id_usuario = $usuario_id ? (int)$usuario_id : 1; 
+
         SolicitudSoporte::create([
-            'id_usuario' => $usuario_id, // Si esto falla, es que el evento no traía metadata
+            'id_usuario' => $final_id_usuario,
             'asunto' => "Sistema: " . $titulo,
-            'mensaje' => "Se ha detectado un evento de Stripe ($titulo). \n\n" .
+            'mensaje' => "⚠️ Evento de Stripe detectado: " . $titulo . "\n\n" .
                          "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
-                         "Correo Cliente: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
-                         "Detalle: " . ($object->last_payment_error->message ?? 'Cierre de sesión o error de red'),
+                         "Correo: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
+                         "Metadata original: " . json_encode($object->metadata ?? []) . "\n" .
+                         "Detalle: " . ($object->last_payment_error->message ?? 'Error desconocido o expiración'),
             'estatus' => 'abierto',
             'activo' => true
         ]);
         
-        Log::info("Ticket de soporte automático creado por fallo en Stripe: " . $titulo . " para usuario: " . ($usuario_id ?? 'Desconocido'));
+        Log::info("Ticket de soporte creado exitosamente para el usuario ID: " . $final_id_usuario);
     }
 
     private function procesarPagoExitoso($session)
