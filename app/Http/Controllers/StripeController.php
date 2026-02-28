@@ -60,7 +60,7 @@ class StripeController extends Controller
                 ]],
                 'mode' => 'payment',
                 'success_url' => config('services.stripe.admin_panel_url') . '/success-payment?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url' => config('services.stripe.admin_panel_url') . '/subscription?error=payment_cancelled',
+                'cancel_url' => config('services.stripe.admin_panel_url') . '/dashboard/subscription?error=payment_cancelled',
                 'metadata' => [
                     'usuario_id' => $usuario->id,
                     'plan_id' => $plan->id,
