@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use App\Models\Negocio;
 use App\Models\PlanPrecio;
 use Illuminate\Support\Facades\Log;
+use App\Models\SolicitudSoporte;
 
 class StripeController extends Controller
 {
@@ -59,7 +60,7 @@ class StripeController extends Controller
                 ]],
                 'mode' => 'payment',
                 'success_url' => config('services.stripe.admin_panel_url') . '/success-payment?session_id={CHECKOUT_SESSION_ID}',
-                'cancel_url' => config('services.stripe.admin_panel_url') . '/subscription',
+                'cancel_url' => config('services.stripe.admin_panel_url') . '/subscription?error=payment_cancelled',
                 'metadata' => [
                     'usuario_id' => $usuario->id,
                     'plan_id' => $plan->id,
@@ -96,13 +97,47 @@ class StripeController extends Controller
             return response()->json(['message' => 'Invalid signature'], 400);
         }
 
-        if ($event->type == 'checkout.session.completed') {
-            $session = $event->data->object;
-            Log::info("Checkout Session Completed detectado. Session ID: " . $session->id);
-            $this->procesarPagoExitoso($session);
+        switch ($event->type) {
+            case 'checkout.session.completed':
+                $session = $event->data->object;
+                Log::info("Checkout Session Completed. ID: " . $session->id);
+                $this->procesarPagoExitoso($session);
+                break;
+
+            case 'payment_intent.payment_failed':
+                $paymentIntent = $event->data->object;
+                Log::warning("Pago Fallido detectado. ID: " . $paymentIntent->id);
+                $this->crearTicketPorFallo($paymentIntent, "Pago Fallido");
+                break;
+
+            case 'checkout.session.expired':
+                $session = $event->data->object;
+                Log::info("Sesión de Checkout expirada. ID: " . $session->id);
+                $this->crearTicketPorFallo($session, "Sesión de Pago Expirada");
+                break;
         }
 
         return response()->json(['status' => 'success']);
+    }
+
+    private function crearTicketPorFallo($object, $titulo)
+    {
+        // El usuario_id suele venir en metadata si lo pusimos al crear la sesión
+        $metadata = $object->metadata ?? null;
+        $usuario_id = $metadata->usuario_id ?? null;
+
+        SolicitudSoporte::create([
+            'id_usuario' => $usuario_id,
+            'asunto' => "Sistema: " . $titulo,
+            'mensaje' => "Se ha detectado un evento de Stripe ($titulo). \n\n" .
+                         "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
+                         "Correo Cliente: " . ($object->customer_email ?? 'No disponible') . "\n" .
+                         "Detalle de error: " . ($object->last_payment_error->message ?? 'Cierre de sesión o error desconocido'),
+            'estatus' => 'abierto',
+            'activo' => true
+        ]);
+        
+        Log::info("Ticket de soporte automático creado por fallo en Stripe: " . $titulo);
     }
 
     private function procesarPagoExitoso($session)
