@@ -66,6 +66,13 @@ class StripeController extends Controller
                     'plan_id' => $plan->id,
                     'meses' => $totalMeses
                 ],
+                'payment_intent_data' => [
+                    'metadata' => [
+                        'usuario_id' => $usuario->id,
+                        'plan_id' => $plan->id,
+                        'meses' => $totalMeses
+                    ]
+                ],
             ]);
         } catch (\Throwable $th) {
             //throw $th;
@@ -126,20 +133,13 @@ class StripeController extends Controller
         Log::info("---------- STRIPE DEBUG START ({$titulo}) ----------");
         Log::info("Clase del objeto: " . get_class($object));
         Log::info("ID del objeto: " . ($object->id ?? 'N/A'));
-        Log::info("Contenido Metadata Raw: " . json_encode($object->metadata ?? []));
+        
+        // Convertimos el objeto metadata a array para mayor seguridad al leer
+        $metadata = (array)($object->metadata ?? []);
+        Log::info("Contenido Metadata Raw (JSON): " . json_encode($metadata));
         
         // 🏗️ EXTRACCIÓN ROBUSTA: Intentamos varios caminos para el id_usuario
-        $usuario_id = null;
-
-        // Camino 1: Directo desde el objeto si el SDK lo mapeó
-        if (isset($object->metadata->usuario_id)) {
-            $usuario_id = $object->metadata->usuario_id;
-        } 
-        // Camino 2: Si viene como array (común en algunas versiones del SDK)
-        elseif (isset($object->metadata['usuario_id'])) {
-            $usuario_id = $object->metadata['usuario_id'];
-        }
-        // Camino 3: Si el objeto es un PaymentIntent y el id está en el cargo relacionado (si existiera)
+        $usuario_id = $metadata['usuario_id'] ?? null;
         
         Log::info("ID Usuario detectado: " . ($usuario_id ?? 'NULL'));
         Log::info("---------- STRIPE DEBUG END ----------");
@@ -154,9 +154,9 @@ class StripeController extends Controller
             'mensaje' => "⚠️ Evento de Stripe detectado: " . $titulo . "\n\n" .
                          "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
                          "Correo: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
-                         "Metadata original: " . json_encode($object->metadata ?? []) . "\n" .
-                         "Detalle: " . ($object->last_payment_error->message ?? 'Error desconocido o expiración'),
-            'estatus' => 'abierto',
+                         "Metadata original: " . json_encode($metadata) . "\n" .
+                         "Detalle Error: " . ($object->last_payment_error->message ?? 'Error desconocido o expiración manual de sesión'),
+            'estatus' => 'solicitado', // ✅ CORRECCIÓN: 'abierto' no es un valor válido en el ENUM de Nenis
             'activo' => true
         ]);
         
