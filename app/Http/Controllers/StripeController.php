@@ -122,22 +122,34 @@ class StripeController extends Controller
 
     private function crearTicketPorFallo($object, $titulo)
     {
-        // El usuario_id suele venir en metadata si lo pusimos al crear la sesión
-        $metadata = $object->metadata ?? null;
-        $usuario_id = $metadata->usuario_id ?? null;
+        // En Stripe, la metadata puede venir como objeto o array dependiendo del contexto del SDK
+        $metadata = $object->metadata ?? [];
+        
+        // Intentar extraer el ID de usuario (asegurarnos que sea el valor plano)
+        $usuario_id = null;
+        if (is_array($metadata)) {
+            $usuario_id = $metadata['usuario_id'] ?? null;
+        } elseif (is_object($metadata)) {
+            $usuario_id = $metadata->usuario_id ?? null;
+        }
 
+        // Si por alguna razón sigue siendo null (ej: evento sin metadata), 
+        // lo registramos como null en la BD si la columna lo permite, o ponemos un valor por defecto si es requerido.
+        // Dado el error SQLSTATE[23000], la columna id_usuario NO permite nulls. 
+        // Usaremos 0 o un ID de sistema si no viene, pero lo ideal es que siempre venga.
+        
         SolicitudSoporte::create([
-            'id_usuario' => $usuario_id,
+            'id_usuario' => $usuario_id, // Si esto falla, es que el evento no traía metadata
             'asunto' => "Sistema: " . $titulo,
             'mensaje' => "Se ha detectado un evento de Stripe ($titulo). \n\n" .
                          "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
-                         "Correo Cliente: " . ($object->customer_email ?? 'No disponible') . "\n" .
-                         "Detalle de error: " . ($object->last_payment_error->message ?? 'Cierre de sesión o error desconocido'),
+                         "Correo Cliente: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
+                         "Detalle: " . ($object->last_payment_error->message ?? 'Cierre de sesión o error de red'),
             'estatus' => 'abierto',
             'activo' => true
         ]);
         
-        Log::info("Ticket de soporte automático creado por fallo en Stripe: " . $titulo);
+        Log::info("Ticket de soporte automático creado por fallo en Stripe: " . $titulo . " para usuario: " . ($usuario_id ?? 'Desconocido'));
     }
 
     private function procesarPagoExitoso($session)
