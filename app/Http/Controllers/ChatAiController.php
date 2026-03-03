@@ -31,15 +31,34 @@ class ChatAiController extends Controller
             $sessionId = $data['session_id'] ?? 'web-'.Str::random(10);
             $isAdmin = $data['is_admin'] ?? false;
             $businessId = $data['business_id'] ?? null;
-            // 1. GET USER AND PLAN DETAILED LIMITS
-            $user = null;
-            try {
-                // Explicitly reload user to get the latest ia_consultas_mes_actual
-                $user = auth('api')->user();
-                if ($user) {
-                    $user = \App\Models\Usuario::with('planActivo')->find($user->id);
+            // 1. GET USER AND PLAN DETAILED LIMITS - Manual JWT check to support public & logged users
+            $user = $request->attributes->get('user'); // Fallback if middleware is ever added
+            
+            if (!$user) {
+                try {
+                    $jwt = $request->header('Authorization');
+                    if ($jwt) {
+                        $jwt = preg_replace('/^Bearer\s+/i', '', $jwt);
+                        $jwt = trim($jwt);
+                        
+                        // Try as User first (clients)
+                        try {
+                            $decoded = \Firebase\JWT\JWT::decode($jwt, new \Firebase\JWT\Key(config('jwt.secret_usuario'), 'HS256'));
+                            $user = \App\Models\Usuario::with('planActivo')->find($decoded->sub);
+                        } catch (Exception $e) {
+                            // Try as Admin
+                            try {
+                                $decoded = \Firebase\JWT\JWT::decode($jwt, new \Firebase\JWT\Key(config('jwt.secret_admin'), 'HS256'));
+                                // For admins, we might not need a Usuario model, but let's see if we have one linked
+                                // or just use the admin object. 
+                                // Actually, most admin tasks in this controller expect a Usuario object ($user).
+                            } catch (Exception $e2) { }
+                        }
+                    }
+                } catch (Exception $e) {
+                    Log::error("JWT Detection Error: " . $e->getMessage());
                 }
-            } catch (Exception $authEx) { }
+            }
 
             $planObj = $user ? $user->planActivo : null;
             $planName = $planObj ? strtolower($planObj->nombre) : 'basic';
@@ -109,7 +128,7 @@ class ChatAiController extends Controller
             ];  
 
             if (str_starts_with($message, '__') && str_ends_with($message, '__') && in_array($message, $allowedCommands)) {
-                return $this->handleCommand($message, $user, $businessId);
+                return $this->handleCommand($message, $user, $businessId, $planName, $planObj);
             }
 
             // 3. CACHING (Efficiency - Cached responses DON'T count as new consultas)
@@ -368,8 +387,9 @@ class ChatAiController extends Controller
         return $result;
     }
 
-    private function handleCommand($command, $user, $businessId = null)
+    private function handleCommand($command, $user, $businessId = null, $planName = 'basic', $planObj = null)
     {
+        $dailyLimitKey = $user ? "ia_daily_user_" . $user->id : null;
         switch ($command) {
             case '__CONTACTAR_SOPORTE__':
                 return response()->json([
@@ -427,11 +447,19 @@ class ChatAiController extends Controller
                 }
                 $user->increment('ia_consultas_mes_actual');
 
+                $consumedToday = Cache::get($dailyLimitKey, 0);
+
                 return response()->json([
                     'reply' => "Aquí tienes una propuesta de palabras clave optimizadas para **{$negocio->nombre}**:\n\n" . $resp . "\n\n¿Te gustaría que te ayude con algo más?",
                     'suggestions' => [
                         ['id' => 'admin.apply_keywords_help', 'label' => '¿Cómo las aplico?', 'message' => '¿Cómo aplico las keywords?']
-                    ]
+                    ],
+                    'plan_detected' => $planName,
+                    'usage' => $user ? [
+                        'current' => $consumedToday,
+                        'limit' => $planObj ? $planObj->max_ia_consultas : 0,
+                        'monthly_total' => $user->ia_consultas_mes_actual
+                    ] : null
                 ]);
 
             case '__IA_MEJORAR_DESCRIPCION__':
@@ -460,12 +488,19 @@ class ChatAiController extends Controller
                     Cache::increment($dailyLimitKey);
                 }
                 $user->increment('ia_consultas_mes_actual');
+                $consumedToday = Cache::get($dailyLimitKey, 0);
 
                 return response()->json([
                     'reply' => "He preparado una mejora para la descripción de **{$negocio->nombre}**:\n\n" . $resp,
                     'suggestions' => [
                         ['id' => 'admin.gen_keywords', 'label' => 'Generar keywords', 'message' => '__IA_GENERAR_KEYWORDS__']
-                    ]
+                    ],
+                    'plan_detected' => $planName,
+                    'usage' => $user ? [
+                        'current' => $consumedToday,
+                        'limit' => $planObj ? $planObj->max_ia_consultas : 0,
+                        'monthly_total' => $user->ia_consultas_mes_actual
+                    ] : null
                 ]);
 
             default:
