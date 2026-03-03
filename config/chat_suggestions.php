@@ -242,8 +242,8 @@ return [
         // Chips iniciales por plan (backend los usa con gating por min_plan)
         'initial_by_plan' => [
             'basic' => [
+                'admin.business_fields',
                 'admin.complete_profile',
-                'admin.business_review',
                 'admin.how_search_works',
                 'admin.upgrade_pro',
             ],
@@ -276,19 +276,18 @@ return [
 
         'chips' => [
 
-            'admin.complete_profile' => [
-                'id' => 'admin.complete_profile',
-                'label' => 'Completar mi negocio',
-                'message' => '¿Qué me falta para completar mi negocio y publicarlo correctamente?',
+            'admin.business_fields' => [
+                'id' => 'admin.business_fields',
+                'label' => 'Campos del negocio',
+                'message' => '¿Qué información o campos necesito para registrar mi negocio de forma correcta?',
                 'category' => 'onboarding',
                 'min_plan' => 'basic',
             ],
 
-
-            'admin.business_review' => [
-                'id' => 'admin.business_review',
-                'label' => 'Revisión de mi negocio',
-                'message' => 'Mi negocio está en revisión. ¿Qué información debo completar (incluyendo sucursales) para que la revisión sea más rápida?',
+            'admin.complete_profile' => [
+                'id' => 'admin.complete_profile',
+                'label' => 'Completar perfil',
+                'message' => '¿Qué me falta para completar mi perfil de negocio y que sea aprobado?',
                 'category' => 'onboarding',
                 'min_plan' => 'basic',
             ],
