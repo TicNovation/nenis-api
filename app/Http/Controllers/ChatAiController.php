@@ -192,23 +192,32 @@ class ChatAiController extends Controller
      */
     private function searchKnowledgeBase($message)
     {
-        // Simple search logic: check if any keyword from the message matches the title, keywords or content
-        $words = explode(' ', strtolower($message));
-        $usefulWords = array_filter($words, fn($w) => strlen($w) > 3);
+        $message = strtolower($message);
+        $words = explode(' ', $message);
+        
+        // Stop words removal (simplified)
+        $stopWords = ['para', 'esta', 'quien', 'donde', 'como', 'forma', 'esta', 'este', 'estos', 'unas', 'unos', 'sobre', 'todo'];
+        $usefulWords = array_filter($words, fn($w) => strlen($w) > 2 && !in_array($w, $stopWords));
 
-        $query = KbArticle::where('estatus', 'publicado');
-
-        if (!empty($usefulWords)) {
-            $query->where(function($q) use ($usefulWords) {
-                foreach ($usefulWords as $word) {
-                    $q->orWhere('titulo', 'LIKE', "%$word%")
-                      ->orWhere('contenido', 'LIKE', "%$word%")
-                      ->orWhere('keywords', 'LIKE', "%$word%");
-                }
-            });
+        if (empty($usefulWords)) {
+            return collect([]);
         }
 
-        return $query->take(3)->get();
+        // We'll calculate a simple relevance score: Title match > Keyword match > Content match
+        $query = KbArticle::where('estatus', 'publicado');
+
+        $query->where(function($q) use ($usefulWords) {
+            foreach ($usefulWords as $word) {
+                $q->orWhere('titulo', 'LIKE', "%$word%")
+                  ->orWhere('contenido', 'LIKE', "%$word%")
+                  ->orWhere('keywords', 'LIKE', "%$word%");
+            }
+        });
+
+        // Ordering by ID and latest articles usually gives better results for recently added guides
+        return $query->orderBy('id', 'DESC')
+                     ->take(5)
+                     ->get();
     }
 
     /**

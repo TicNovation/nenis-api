@@ -279,7 +279,7 @@ return [
             'admin.business_fields' => [
                 'id' => 'admin.business_fields',
                 'label' => 'Campos del negocio',
-                'message' => '¿Qué información o campos necesito para registrar mi negocio de forma correcta?',
+                'message' => '¿Qué información y campos técnicos del formulario necesito para registrar mi negocio paso a paso?',
                 'category' => 'onboarding',
                 'min_plan' => 'basic',
             ],
