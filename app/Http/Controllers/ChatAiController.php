@@ -134,14 +134,15 @@ class ChatAiController extends Controller
             $aiResponse = $this->callDeepSeek($message, $context, $isAdmin);
             
             // Increment the counter only on success and when authenticated (and not cached)
-            if ($user && !$isAdmin && strlen($aiResponse) > 10) {
+            if ($user && strlen($aiResponse) > 10) {
                 // Increment daily cache (expires at midnight)
                 if ($dailyLimitKey) {
                     $secondsToMidnight = now()->diffInSeconds(now()->endOfDay());
                     if (!Cache::has($dailyLimitKey)) {
                         Cache::put($dailyLimitKey, 1, $secondsToMidnight);
+                        $consumedToday = 1;
                     } else {
-                        Cache::increment($dailyLimitKey);
+                        $consumedToday = Cache::increment($dailyLimitKey);
                     }
                 }
                 // Keep incrementing monthly counter for stats
@@ -171,8 +172,9 @@ class ChatAiController extends Controller
             return response()->json(array_merge($responseData, [
                 'plan_detected' => $planName,
                 'usage' => $user ? [
-                    'current' => $user->ia_consultas_mes_actual,
-                    'limit' => $planObj ? $planObj->max_ia_consultas : 0
+                    'current' => $consumedToday, // Send daily count for the dashboard progress bar
+                    'limit' => $planObj ? $planObj->max_ia_consultas : 0,
+                    'monthly_total' => $user->ia_consultas_mes_actual
                 ] : null
             ]), 200);
 
