@@ -176,9 +176,9 @@ class ChatAiController extends Controller
             ]), 200);
 
         } catch (Exception $e) {
-            Log::error('ChatAI Error: ' . $e->getMessage());
+            Log::error('ChatAI Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return response()->json([
-                'reply' => 'Lo siento, tuve un problema técnico procesando tu mensaje. ¿Podrías intentar de nuevo en un momento?',
+                'reply' => 'Lo siento, tuve un problema técnico procesando tu mensaje. ¿Podrías intentar de nuevo en un momento? (Error: ' . $e->getMessage() . ')',
                 'suggestions' => []
             ], 500);
         }
