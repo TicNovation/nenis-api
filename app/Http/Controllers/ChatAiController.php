@@ -32,6 +32,7 @@ class ChatAiController extends Controller
             $isAdmin = $data['is_admin'] ?? false;
             $businessId = $data['business_id'] ?? null;
             // 1. GET USER AND PLAN DETAILED LIMITS
+            $user = null;
             try {
                 // Explicitly reload user to get the latest ia_consultas_mes_actual
                 $user = auth('api')->user();
