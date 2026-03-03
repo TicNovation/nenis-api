@@ -18,6 +18,11 @@ Schedule::command('app:terminar-membresia')
     ->withoutOverlapping(180)
     ->runInBackground();
 
+Schedule::command('ia:reset-usage')
+    ->monthlyOn(1, '00:00')
+    ->withoutOverlapping(180)
+    ->runInBackground();
+
 Schedule::command('app:enviar-recordatorio-pago')
     ->dailyAt('12:00')
     ->withoutOverlapping(180)

@@ -6,40 +6,43 @@ return [
     |--------------------------------------------------------------------------
     | Chat Suggestions / Chips
     |--------------------------------------------------------------------------
-    | Define suggested chips for public landing and admin panel.
     |
-    | Usage idea:
-    | - Show `public.initial` on first render (landing).
-    | - After each response, detect dominant topic/category (based on KB articles used)
-    |   and show `public.by_category[$category]` (max N).
-    | - On admin panel, use `admin.by_plan[$plan]` + optionally `admin.by_category[$category]`.
+    | El backend decide qué chips mostrar.
     |
-    | Each chip:
-    | - id: stable identifier (string)
-    | - label: UI text
-    | - message: what you actually send to your /chat endpoint
-    | - category: optional (used for grouping / analytics)
-    | - children: optional array of chip ids (for follow-ups)
-    | - requires_plan: optional (basic|pro|elite) for admin-only chips
+    | Convenciones:
+    | - mode = public | admin (lo manda el frontend)
+    | - En admin, el frontend también manda business_id seleccionado.
+    | - Comandos internos reservados: __...__
+    |   - Público (fallback): __CONTACTAR_SOPORTE__, __INTENTAR_OTRA_PREGUNTA__
+    |   - Admin (acciones IA): __IA_...__
+    |
+    | Cada chip:
+    | - id: identificador estable (string)
+    | - label: texto UI
+    | - message: texto que se envía al /chat (string)
+    | - category: agrupación / analytics (opcional)
+    | - children: ids de chips sugeridos como follow-ups (opcional)
+    | - min_plan: plan mínimo requerido en admin (basic|pro|elite) (opcional)
     */
 
     'limits' => [
-        'max_visible' => 5,          // maximum chips shown at once
-        'max_children_visible' => 4, // when a chip is selected, how many children you may show
+        'max_visible' => 5,
+        'max_children_visible' => 4,
     ],
 
     'public' => [
 
-        // First-time chips shown on landing
+        // Chips iniciales (NO incluyen soporte/contacto/legal para evitar desviar conversión)
         'initial' => [
             'public.pricing',
+            'public.plan_basic',
             'public.register',
             'public.how_it_works',
-            'public.contact',
             'public.terms',
         ],
 
-        // Chips grouped by KB category (dominant topic after answering)
+        // Chips sugeridos por categoría dominante (backend puede usar esto si quiere)
+        // Nota: soporte/contacto NO se incluyen aquí; se agregan solo en fallback.
         'by_category' => [
 
             'planes' => [
@@ -54,8 +57,8 @@ return [
                 'public.register',
                 'public.requirements',
                 'public.multi_business',
-                'public.support',
-                'public.contact',
+                'public.verify_email',
+                'public.forgot_password',
             ],
 
             'legal' => [
@@ -63,15 +66,6 @@ return [
                 'public.privacy',
                 'public.content_policy',
                 'public.refunds',
-                'public.contact',
-            ],
-
-            'contacto' => [
-                'public.contact',
-                'public.support',
-                'public.register',
-                'public.how_it_works',
-                'public.pricing',
             ],
 
             'proyecto' => [
@@ -79,19 +73,24 @@ return [
                 'public.who_we_are',
                 'public.pricing',
                 'public.register',
-                'public.contact',
+            ],
+
+            'negocio' => [
+                'public.how_it_works',
+                'public.pricing',
+                'public.register',
+                'public.compare_plans',
             ],
 
             'faq' => [
                 'public.pricing',
                 'public.register',
                 'public.how_it_works',
-                'public.contact',
-                'public.support',
+                'public.terms',
             ],
         ],
 
-        // Master chip catalog (public)
+        // Catálogo maestro de chips (público)
         'chips' => [
 
             'public.pricing' => [
@@ -144,20 +143,35 @@ return [
                 'label' => '¿Cómo me registro?',
                 'message' => '¿Cómo me registro en Nenis? Dame los pasos concretos.',
                 'category' => 'registro',
-                'children' => ['public.requirements', 'public.multi_business'],
+                'children' => ['public.requirements', 'public.verify_email'],
             ],
 
             'public.requirements' => [
                 'id' => 'public.requirements',
                 'label' => '¿Qué necesito para registrarme?',
-                'message' => '¿Qué información necesito tener lista para registrar mi negocio en Nenis?',
+                'message' => '¿Qué información necesito tener lista para registrarme en Nenis?',
                 'category' => 'registro',
                 'children' => ['public.register'],
             ],
 
+            'public.verify_email' => [
+                'id' => 'public.verify_email',
+                'label' => 'Verificar correo',
+                'message' => '¿Por qué debo verificar mi correo y qué pasa si no me llega el correo de confirmación?',
+                'category' => 'registro',
+                'children' => ['public.forgot_password'],
+            ],
+
+            'public.forgot_password' => [
+                'id' => 'public.forgot_password',
+                'label' => 'Recuperar contraseña',
+                'message' => 'Olvidé mi contraseña. ¿Cómo puedo recuperar el acceso a mi cuenta?',
+                'category' => 'registro',
+            ],
+
             'public.multi_business' => [
                 'id' => 'public.multi_business',
-                'label' => '¿Puedo registrar varios negocios?',
+                'label' => '¿Varios negocios?',
                 'message' => '¿Puedo registrar más de un negocio con una cuenta? ¿Cómo funciona la suscripción por usuario?',
                 'category' => 'registro',
             ],
@@ -165,7 +179,7 @@ return [
             'public.how_it_works' => [
                 'id' => 'public.how_it_works',
                 'label' => '¿Cómo funciona Nenis?',
-                'message' => 'Explícame qué es Nenis y cómo ayuda a los emprendedores. Resumen breve.',
+                'message' => 'Explícame qué es Nenis y cómo ayuda a emprendedores. Resumen breve.',
                 'category' => 'proyecto',
                 'children' => ['public.pricing', 'public.register'],
             ],
@@ -179,7 +193,7 @@ return [
 
             'public.terms' => [
                 'id' => 'public.terms',
-                'label' => 'Términos y condiciones',
+                'label' => 'Términos',
                 'message' => '¿Dónde puedo leer los términos y condiciones de Nenis? Dame un resumen y el link oficial.',
                 'category' => 'legal',
                 'children' => ['public.privacy', 'public.content_policy'],
@@ -188,76 +202,75 @@ return [
             'public.privacy' => [
                 'id' => 'public.privacy',
                 'label' => 'Privacidad',
-                'message' => '¿Cuál es la política de privacidad de Nenis? Resumen y link oficial.',
+                'message' => '¿Cuál es el aviso de privacidad de Nenis? Resumen y link oficial.',
                 'category' => 'legal',
             ],
 
             'public.content_policy' => [
                 'id' => 'public.content_policy',
-                'label' => 'Políticas de contenido',
+                'label' => 'Contenido permitido',
                 'message' => '¿Qué tipo de negocios o contenido no se permite en Nenis? Resumen y link.',
                 'category' => 'legal',
             ],
 
             'public.refunds' => [
                 'id' => 'public.refunds',
-                'label' => 'Pagos y reembolsos',
-                'message' => '¿Cómo funcionan los pagos, cancelaciones y reembolsos en Nenis? Resumen y link oficial.',
+                'label' => 'Pagos y devoluciones',
+                'message' => '¿Cómo funcionan pagos, cancelaciones y devoluciones en Nenis? Resumen y link oficial.',
                 'category' => 'legal',
             ],
 
-            'public.contact' => [
-                'id' => 'public.contact',
-                'label' => 'Contacto',
-                'message' => '¿Cómo puedo contactar a Nenis para soporte o dudas? Dame los canales y horarios si existen.',
-                'category' => 'contacto',
-                'children' => ['public.support'],
-            ],
-
+            // Chips de fallback (NO se muestran por defecto; el backend los agrega solo si no hay KB)
             'public.support' => [
                 'id' => 'public.support',
-                'label' => 'Soporte',
-                'message' => 'Tengo una duda y necesito ayuda: ¿cuál es el canal de soporte y tiempos de respuesta?',
+                'label' => 'Contactar soporte',
+                'message' => '__CONTACTAR_SOPORTE__',
                 'category' => 'contacto',
+            ],
+
+            'public.try_again' => [
+                'id' => 'public.try_again',
+                'label' => 'Intentar otra pregunta',
+                'message' => '__INTENTAR_OTRA_PREGUNTA__',
+                'category' => 'faq',
             ],
         ],
     ],
 
     'admin' => [
 
-        // Chips shown on first render inside admin chat (depending on plan)
+        // Chips iniciales por plan (backend los usa con gating por min_plan)
         'initial_by_plan' => [
             'basic' => [
                 'admin.complete_profile',
+                'admin.business_review',
                 'admin.how_search_works',
                 'admin.upgrade_pro',
-                'admin.support',
             ],
             'pro' => [
                 'admin.gen_keywords',
                 'admin.improve_description',
-                'admin.suggest_category',
-                'admin.support',
+                'admin.plan_benefits',
+                'admin.upgrade_elite',
             ],
             'elite' => [
                 'admin.gen_keywords',
                 'admin.improve_description',
-                'admin.suggest_category',
-                'admin.seo_audit',
-                'admin.generate_items_bulk',
+                'admin.plan_benefits',
+                'admin.support',
             ],
         ],
 
-        // Optional: admin chips by topic category (based on KB or detected intent)
         'by_category' => [
             'planes' => [
+                'admin.plan_benefits',
                 'admin.upgrade_pro',
                 'admin.upgrade_elite',
-                'admin.plan_benefits',
             ],
-            'registro' => [
-                'admin.complete_profile',
-                'admin.support',
+            'negocio' => [
+                'admin.gen_keywords',
+                'admin.improve_description',
+                'admin.suggest_category',
             ],
         ],
 
@@ -265,10 +278,37 @@ return [
 
             'admin.complete_profile' => [
                 'id' => 'admin.complete_profile',
-                'label' => 'Completar mi perfil',
-                'message' => '¿Qué me falta para completar mi perfil y publicar mi negocio correctamente?',
+                'label' => 'Completar mi negocio',
+                'message' => '¿Qué me falta para completar mi negocio y publicarlo correctamente?',
                 'category' => 'onboarding',
-                'requires_plan' => 'basic',
+                'min_plan' => 'basic',
+            ],
+
+
+            'admin.business_review' => [
+                'id' => 'admin.business_review',
+                'label' => 'Revisión de mi negocio',
+                'message' => 'Mi negocio está en revisión. ¿Qué información debo completar (incluyendo sucursales) para que la revisión sea más rápida?',
+                'category' => 'onboarding',
+                'min_plan' => 'basic',
+            ],
+
+            // Acciones IA (deterministas, requieren business_id válido en backend)
+            'admin.gen_keywords' => [
+                'id' => 'admin.gen_keywords',
+                'label' => 'Generar keywords',
+                'message' => '__IA_GENERAR_KEYWORDS__',
+                'category' => 'ai_action',
+                'min_plan' => 'pro',
+                'children' => ['admin.apply_keywords_help'],
+            ],
+
+            'admin.improve_description' => [
+                'id' => 'admin.improve_description',
+                'label' => 'Mejorar descripción',
+                'message' => '__IA_MEJORAR_DESCRIPCION__',
+                'category' => 'ai_action',
+                'min_plan' => 'pro',
             ],
 
             'admin.how_search_works' => [
@@ -276,15 +316,7 @@ return [
                 'label' => '¿Cómo funciona la búsqueda?',
                 'message' => 'Explícame cómo funciona la búsqueda y la prioridad por plan dentro de Nenis.',
                 'category' => 'faq',
-                'requires_plan' => 'basic',
-            ],
-
-            'admin.support' => [
-                'id' => 'admin.support',
-                'label' => 'Soporte',
-                'message' => 'Necesito ayuda con mi cuenta o negocio. ¿Cómo contacto soporte?',
-                'category' => 'contacto',
-                'requires_plan' => 'basic',
+                'min_plan' => 'basic',
             ],
 
             'admin.upgrade_pro' => [
@@ -292,7 +324,7 @@ return [
                 'label' => 'Mejorar a Pro',
                 'message' => '¿Qué beneficios obtengo si actualizo al plan Pro?',
                 'category' => 'planes',
-                'requires_plan' => 'basic',
+                'min_plan' => 'basic',
             ],
 
             'admin.upgrade_elite' => [
@@ -300,7 +332,7 @@ return [
                 'label' => 'Mejorar a Elite',
                 'message' => '¿Qué beneficios obtengo si actualizo al plan Elite?',
                 'category' => 'planes',
-                'requires_plan' => 'pro',
+                'min_plan' => 'pro',
             ],
 
             'admin.plan_benefits' => [
@@ -308,57 +340,47 @@ return [
                 'label' => 'Beneficios de mi plan',
                 'message' => 'Explícame los beneficios del plan que tengo y qué puedo hacer con el asistente IA.',
                 'category' => 'planes',
-                'requires_plan' => 'basic',
+                'min_plan' => 'basic',
             ],
 
-            // Pro+ actions (these will create ai_runs, not just chat)
-            'admin.gen_keywords' => [
-                'id' => 'admin.gen_keywords',
-                'label' => 'Generar keywords',
-                'message' => 'Quiero generar keywords para mi negocio. Guíame y propón una lista.',
-                'category' => 'ai_action',
-                'requires_plan' => 'pro',
-                'children' => ['admin.apply_keywords_help'],
-            ],
-
-            'admin.improve_description' => [
-                'id' => 'admin.improve_description',
-                'label' => 'Mejorar descripción',
-                'message' => 'Quiero mejorar la descripción de mi negocio para SEO local. Genera 1 propuesta.',
-                'category' => 'ai_action',
-                'requires_plan' => 'pro',
-            ],
-
-            'admin.suggest_category' => [
+            /*'admin.suggest_category' => [
                 'id' => 'admin.suggest_category',
                 'label' => 'Sugerir categoría',
-                'message' => 'Sugiere la mejor categoría para mi negocio según lo que vendo.',
+                'message' => '__IA_SUGERIR_CATEGORIA__',
                 'category' => 'ai_action',
-                'requires_plan' => 'pro',
-            ],
+                'min_plan' => 'pro',
+            ],*/
 
-            'admin.seo_audit' => [
+            /*'admin.seo_audit' => [
                 'id' => 'admin.seo_audit',
                 'label' => 'Auditoría SEO',
-                'message' => 'Quiero una auditoría SEO avanzada de mi ficha. Dime errores y mejoras.',
+                'message' => '__IA_AUDITORIA_SEO__',
                 'category' => 'ai_action',
-                'requires_plan' => 'elite',
+                'min_plan' => 'elite',
             ],
 
-            'admin.generate_items_bulk' => [
+            /*'admin.generate_items_bulk' => [
                 'id' => 'admin.generate_items_bulk',
                 'label' => 'Generar productos/servicios',
-                'message' => 'Quiero generar automáticamente productos/servicios (items) para mi negocio con propuestas.',
+                'message' => '__IA_GENERAR_ITEMS__',
                 'category' => 'ai_action',
-                'requires_plan' => 'elite',
-            ],
+                'min_plan' => 'elite',
+            ],*/
 
             'admin.apply_keywords_help' => [
                 'id' => 'admin.apply_keywords_help',
                 'label' => '¿Cómo aplico las keywords?',
                 'message' => '¿Cómo aplico o edito las keywords sugeridas antes de guardarlas?',
                 'category' => 'ai_help',
-                'requires_plan' => 'pro',
+                'min_plan' => 'pro',
+            ],
+
+            'admin.support' => [
+                'id' => 'admin.support',
+                'label' => 'Soporte',
+                'message' => '__CONTACTAR_SOPORTE__',
+                'category' => 'contacto',
+                'min_plan' => 'basic',
             ],
         ],
     ],

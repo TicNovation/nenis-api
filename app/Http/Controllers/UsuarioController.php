@@ -139,6 +139,7 @@ class UsuarioController extends Controller
         
         $usuario->total_negocios = 0;
         $usuario->total_items = 0;
+        $usuario->ia_consultas_mes_actual = 0;
         $usuario->activo = 0; // Desactivado hasta que verifique correo
         $usuario->save();
 
@@ -207,6 +208,7 @@ class UsuarioController extends Controller
         
         $usuario->total_negocios = 0;
         $usuario->total_items = 0;
+        $usuario->ia_consultas_mes_actual = 0;
 
         $usuario->save();
 
@@ -361,9 +363,9 @@ class UsuarioController extends Controller
     public function actualizar(Request $request)
     {
         $validate = Validator::make($request->all(), [
-            'id' => 'required|integer',
+            'id' => 'sometimes|integer',
             'nombre' => 'sometimes|string|max:255',
-            'correo' => 'sometimes|email|unique:usuarios,correo,' . $request->id,
+            'correo' => 'sometimes|email|unique:usuarios,correo,' . $this->obtenerUsuarioId($request, $request->id),
             'telefono' => 'sometimes|string|max:20',
             'pass' => 'sometimes|string|min:6',
             'id_plan_activo' => 'sometimes|integer|exists:planes,id',
@@ -375,7 +377,8 @@ class UsuarioController extends Controller
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $usuario = Usuario::find($request->id);
+        $id_usuario = $this->obtenerUsuarioId($request, $request->id);
+        $usuario = Usuario::find($id_usuario);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
