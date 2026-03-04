@@ -245,6 +245,7 @@ return [
                 'admin.business_fields',
                 'admin.complete_profile',
                 'admin.how_search_works',
+                'admin.about_creators',
                 'admin.upgrade_pro',
             ],
             'pro' => [
@@ -315,6 +316,14 @@ return [
                 'label' => '¿Cómo funciona la búsqueda?',
                 'message' => 'Explícame cómo funciona la búsqueda y la prioridad por plan dentro de Nenis.',
                 'category' => 'faq',
+                'min_plan' => 'basic',
+            ],
+
+            'admin.about_creators' => [
+                'id' => 'admin.about_creators',
+                'label' => '¿Quién creó Nenis?',
+                'message' => '¿Quién es el dueño de Nenis y quién desarrolló la plataforma?',
+                'category' => 'soporte',
                 'min_plan' => 'basic',
             ],
 

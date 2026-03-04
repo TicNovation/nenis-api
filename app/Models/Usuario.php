@@ -28,6 +28,7 @@ class Usuario extends Authenticatable
         'destacado_titulo_cache',
         'max_alcance_visibilidad',
         'ia_consultas_mes_actual',
+        'ia_consultas_hoy',
         'activo',
     ];
 
@@ -42,6 +43,7 @@ class Usuario extends Authenticatable
         'total_items' => 'integer',
         'prioridad_cache' => 'integer',
         'ia_consultas_mes_actual' => 'integer',
+        'ia_consultas_hoy' => 'integer',
     ];
 
     public function getAuthPassword()

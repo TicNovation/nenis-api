@@ -76,7 +76,7 @@ class NegocioController extends Controller
         // Heredar campos del Usuario (Plan/Membresía)
         $negocio->destacado_cache = $usuario->destacado_cache;
         $negocio->destacado_titulo_cache = $usuario->destacado_titulo_cache;
-        $negocio->alcance_visibilidad = $usuario->max_alcance_visibilidad;
+        $negocio->alcance_visibilidad = 'ciudad';
         $negocio->prioridad_cache = $usuario->prioridad_cache;
         
         $negocio->telefono = $request->telefono;
@@ -128,6 +128,7 @@ class NegocioController extends Controller
             'instagram' => 'nullable|string|max:190',
             'tiktok' => 'nullable|string|max:190',
             'estatus' => 'sometimes|string|in:borrador,publicado,pausado',
+            'alcance_visibilidad' => 'sometimes|string|in:ciudad,estado,pais',
             'categorias_extra' => 'nullable|string', // JSON string of category IDs
         ]);
 
@@ -160,6 +161,17 @@ class NegocioController extends Controller
 
         if ($request->has('estatus')) {
             $negocio->estatus = $request->estatus;
+        }
+
+        if ($request->has('alcance_visibilidad')) {
+            $nuevoAlcance = $request->input('alcance_visibilidad');
+            $usuario = $negocio->usuario;
+            $niveles = ['ciudad' => 1, 'estado' => 2, 'pais' => 3];
+            $nivelMax = $niveles[$usuario->max_alcance_visibilidad ?? 'ciudad'] ?? 1;
+            $nivelSolicitado = $niveles[$nuevoAlcance] ?? 1;
+            if ($nivelSolicitado <= $nivelMax) {
+                $negocio->alcance_visibilidad = $nuevoAlcance;
+            }
         }
 
         if ($request->hasFile('ruta_logo')) {
