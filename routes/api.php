@@ -216,6 +216,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::post('sucursal/horario/crear', [SucursalHorarioController::class, 'crear']);
     Route::post('sucursal/horario/actualizar', [SucursalHorarioController::class, 'actualizar']);
     Route::post('sucursal/horario/eliminar', [SucursalHorarioController::class, 'eliminar']);
+    Route::post('sucursal/horario/sincronizar', [SucursalHorarioController::class, 'sincronizar']);
 
     // Auditoría (Ruta compartida para registrar el motivo al borrar)
     Route::post('auditoria/registrar', [AuditoriaEliminacionController::class, 'registrar']);

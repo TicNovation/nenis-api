@@ -232,7 +232,7 @@ class NegocioController extends Controller
         $id_usuario = $this->obtenerUsuarioId($request, $usuario_id);
         $negocio = Negocio::where('id', $id)
             ->where('id_usuario', $id_usuario)
-            ->with(['categoriaPrincipal', 'categorias', 'imagenes', 'sucursales', 'items', 'empleos'])
+            ->with(['categoriaPrincipal', 'categorias', 'imagenes', 'sucursales.horarios', 'items', 'empleos'])
             ->first();
 
         if (!$negocio) {

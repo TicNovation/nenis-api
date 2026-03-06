@@ -177,4 +177,51 @@ class SucursalHorarioController extends Controller
 
         return response()->json(['message' => 'Horario eliminado exitosamente'], 200);
     }
+
+    /**
+     * Sincronizar todos los horarios de una sucursal en una sola petición.
+     */
+    public function sincronizar(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'id_sucursal' => 'required|integer',
+            'id_usuario' => 'sometimes|integer',
+            'horarios' => 'required|array',
+            'horarios.*.dia_semana' => 'required|integer|min:1|max:7',
+            'horarios.*.hora_apertura' => 'nullable|string',
+            'horarios.*.hora_cierre' => 'nullable|string',
+            'horarios.*.es_cerrado' => 'required|boolean',
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $id_usuario_req = $request->input('id_usuario') ?? $request->query('id_usuario');
+        $id_usuario = $this->obtenerUsuarioId($request, $id_usuario_req);
+
+        $sucursal = Sucursal::with('negocio')
+            ->where('id', $request->id_sucursal)
+            ->first();
+
+        if (!$sucursal || $sucursal->negocio->id_usuario != $id_usuario) {
+            return response()->json(['message' => 'Sucursal no encontrada o no autorizada'], 404);
+        }
+
+        foreach ($request->horarios as $h) {
+            SucursalHorario::updateOrCreate(
+                [
+                    'id_sucursal' => $request->id_sucursal,
+                    'dia_semana' => $h['dia_semana']
+                ],
+                [
+                    'hora_apertura' => $h['es_cerrado'] ? null : $h['hora_apertura'],
+                    'hora_cierre' => $h['es_cerrado'] ? null : $h['hora_cierre'],
+                    'es_cerrado' => $h['es_cerrado']
+                ]
+            );
+        }
+
+        return response()->json(['message' => 'Horarios sincronizados exitosamente'], 200);
+    }
 }
