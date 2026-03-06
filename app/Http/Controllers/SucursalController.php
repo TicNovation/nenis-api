@@ -107,6 +107,10 @@ class SucursalController extends Controller
             'activo' => 1,
         ]);
 
+        //Incrementa la cantidad de sucursales
+        $negocio->increment('total_sucursales');
+
+
         return response()->json(['message' => 'Sucursal creada exitosamente', 'data' => $sucursal], 201);
     }
 
@@ -192,7 +196,15 @@ class SucursalController extends Controller
             return response()->json(['message' => 'Sucursal no encontrada o no autorizada'], 404);
         }
 
+        //Eliminar los horarios de la sucursal
+        SucursalHorario::where('id_sucursal', $sucursal->id)->delete();
+
         $sucursal->delete();
+
+        //Decrementar la cantidad de sucursales
+        $negocio = Negocio::find($sucursal->negocio->id);
+        $negocio->decrement('total_sucursales');
+
 
         return response()->json(['message' => 'Sucursal eliminada exitosamente'], 200);
     }

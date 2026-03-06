@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use Illuminate\Support\Str;
+
 class Membresia extends Model
 {
     protected $table = 'membresias';
 
-    public $timestamps = false; // Only has created_at
+    //public $timestamps = false; // Only has created_at
 
     protected $fillable = [
         'id_usuario',
@@ -20,6 +22,7 @@ class Membresia extends Model
         'inicio_en',
         'fin_en',
         'estatus',
+        'folio',
     ];
 
     protected $casts = [
@@ -33,6 +36,16 @@ class Membresia extends Model
     {
         static::creating(function ($model) {
             $model->created_at = $model->freshTimestamp();
+            
+            // Generar un folio único si no tiene uno
+            if (!$model->folio) {
+                $model->folio = 'NEN-' . strtoupper(Str::random(10));
+                
+                // Asegurar que sea único (extra safety)
+                while (self::where('folio', $model->folio)->exists()) {
+                    $model->folio = 'NEN-' . strtoupper(Str::random(10));
+                }
+            }
         });
     }
 

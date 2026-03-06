@@ -90,6 +90,11 @@ class NegocioController extends Controller
         $negocio->estatus = 'borrador'; // Por defecto al crear
         $negocio->estatus_verificacion = 'pendiente';
         $negocio->activo = 1;
+        $negocio->total_imagenes = 0;
+        $negocio->total_sucursales = 0;
+        $negocio->total_items = 0;
+        $negocio->total_ofertas_empleo = 0;
+
 
         if ($request->hasFile('ruta_logo')) {
             $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
@@ -192,7 +197,23 @@ class NegocioController extends Controller
 
         if ($request->has('categorias_extra')) {
             $categoriasExtra = json_decode($request->categorias_extra, true);
+            
             if (is_array($categoriasExtra)) {
+                // 1. Limpiar duplicados y el ID de la categoría principal
+                $categoriasExtra = array_unique(array_filter($categoriasExtra));
+                $categoriasExtra = array_diff($categoriasExtra, [$negocio->id_categoria_principal]);
+
+                // 2. Definir límites por plan (puedes ajustar estos números)
+                $planNombre = strtolower($negocio->usuario->plan_activo->nombre ?? 'basic');
+                $limite = 0;
+                if ($planNombre === 'elite' || $planNombre === 'premium plus') $limite = 9;
+                else if ($planNombre === 'pro') $limite = 6;
+                else $limite = 3; // Básico
+
+                // 3. Aplicar límite
+                $categoriasExtra = array_slice($categoriasExtra, 0, $limite);
+
+                // 4. Sincronizar (Laravel se encarga de la eficiencia con sync)
                 $negocio->categorias()->sync($categoriasExtra);
             }
         }

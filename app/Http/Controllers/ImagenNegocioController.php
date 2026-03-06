@@ -33,6 +33,8 @@ class ImagenNegocioController extends Controller
             'ruta' => $this->subirArchivo($request->file('imagen'), ['jpg', 'jpeg', 'png', 'gif'], 'negocios'),
         ]);
 
+        $negocio->increment('total_imagenes');
+
         return response()->json(['data' => $imagen_negocio, 'message' => 'Imagen subida exitosamente'], 201);
     }
 
@@ -59,6 +61,9 @@ class ImagenNegocioController extends Controller
         
         // Eliminar de la base de datos
         $imagen->delete();
+        //Decrementar la cantidad de sucursales
+        $negocio = Negocio::find($imagen->negocio->id);
+        $negocio->decrement('total_imagenes');
 
         return response()->json(['message' => 'Imagen eliminada exitosamente'], 200);
     }

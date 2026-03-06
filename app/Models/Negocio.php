@@ -38,12 +38,21 @@ class Negocio extends Model
         'total_vistas',
         'prioridad_cache',
         'activo',
+        'total_items',
+        'total_imagenes',
+        'total_sucursales',
+        'total_ofertas_empleo'
+
     ];
 
     protected $casts = [
         'activo' => 'boolean',
         'total_vistas' => 'integer',
         'prioridad_cache' => 'integer',
+        'total_items' => 'integer',
+        'total_imagenes' => 'integer',
+        'total_sucursales' => 'integer',
+        'total_ofertas_empleo' => 'integer'
     ];
 
     public function usuario()

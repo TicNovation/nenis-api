@@ -75,12 +75,6 @@ class ItemController extends Controller
             return response()->json(['message' => 'Negocio no encontrado'], 404);
         }
 
-        // Validar límite de items según plan
-        $plan = Plan::find($usuario->id_plan_activo);
-        if ($usuario->total_items >= $plan->max_items) {
-            return response()->json(['message' => 'Has alcanzado el límite máximo de productos en tu plan actual'], 403);
-        }
-
         $item = new Item();
         $item->id_negocio = $request->id_negocio;
         $item->id_categoria = $request->id_categoria;
@@ -100,7 +94,7 @@ class ItemController extends Controller
         $item->save();
 
         // Incrementamos el contador del usuario
-        $usuario->increment('total_items');
+        $negocio->increment('total_items');
 
         return response()->json(['message' => 'Item creado exitosamente', 'data' => $item], 201);
     }
@@ -197,10 +191,12 @@ class ItemController extends Controller
             return response()->json(['message' => 'Item no encontrado'], 404);
         }
 
+        $this->eliminarArchivo($item->ruta_imagen_destacada);
         $item->delete();
 
         // Decrementamos el contador del usuario
-        $usuario->decrement('total_items');
+        $negocio = Negocio::find($item->negocio->id);
+        $negocio->decrement('total_items');
 
         return response()->json(['message' => 'Item eliminado exitosamente'], 200);
     }

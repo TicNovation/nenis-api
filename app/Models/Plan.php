@@ -13,9 +13,9 @@ class Plan extends Model
         'stripe_precio_id',
         'precio_mensual',
         'max_negocios',
-        'max_items',
+        'max_items_negocio',
+        'max_sucursales_negocio',
         'max_ofertas_empleo_activas',
-        'max_imagenes_item',
         'max_imagenes_negocio',
         'max_alcance_visibilidad',
         'max_ia_consultas',
@@ -30,9 +30,9 @@ class Plan extends Model
 
     protected $casts = [
         'precio_mensual' => 'decimal:2',
-        'max_items' => 'integer',
+        'max_items_negocio' => 'integer',
+        'max_sucursales_negocio' => 'integer',
         'max_ofertas_empleo_activas' => 'integer',
-        'max_imagenes_item' => 'integer',
         'max_imagenes_negocio' => 'integer',
         'max_ia_consultas' => 'integer',
         'incluye_ia_negocios' => 'boolean',

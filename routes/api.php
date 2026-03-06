@@ -154,7 +154,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::post('producto/imagen/eliminar', [ImagenItemController::class, 'eliminar']);
 
     // Galeria de negocios
-    Route::post('negocio/imagen/crear', [ImagenNegocioController::class, 'crear']);
+    Route::post('negocio/imagen/crear', [ImagenNegocioController::class, 'crear'])->middleware('check.limits:imagenes');
     Route::post('negocio/imagen/eliminar', [ImagenNegocioController::class, 'eliminar']);
     Route::get('negocio/imagen/listar/{id_negocio}/{usuario_id?}', [ImagenNegocioController::class, 'listar']);
 

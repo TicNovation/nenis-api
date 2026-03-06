@@ -22,7 +22,6 @@ class Usuario extends Authenticatable
         'correo_verificado',
         'id_plan_activo',
         'total_negocios',
-        'total_items',
         'prioridad_cache',
         'destacado_cache',
         'destacado_titulo_cache',
@@ -40,7 +39,6 @@ class Usuario extends Authenticatable
     protected $casts = [
         'activo' => 'boolean',
         'total_negocios' => 'integer',
-        'total_items' => 'integer',
         'prioridad_cache' => 'integer',
         'ia_consultas_mes_actual' => 'integer',
         'ia_consultas_hoy' => 'integer',

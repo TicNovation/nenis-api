@@ -97,13 +97,13 @@ class ChatAiController extends Controller
                 $sessionId = "10" . $data['fingerprint'];
             }
 
-            // Check if plan allows AI Assistant
-            if ($user && $planActivo && $planActivo->max_ia_consultas == 0 && !$isAdmin) {
-                return response()->json([
-                    'reply' => "Tu plan actual ($planName) no incluye el asistente de IA. ¡Sube de nivel para usar estas funciones!",
-                    'suggestions' => [],
-                    'upgrade_required' => true
-                ], 403);
+            // 1.2 SESSION IDENTIFICATION (For OrionIA grouping)
+            if ($user) {
+                // Formato: 10 + ID del usuario (8 dígitos con ceros iniciales) -> Ej: 1000000005
+                $sessionId = "10" . str_pad($user->id, 8, '0', STR_PAD_LEFT);
+            } elseif (!empty($data['fingerprint'])) {
+                // Para usuarios no logueados, concatenamos el prefijo 10 al fingerprint para consistencia
+                $sessionId = "10" . $data['fingerprint'];
             }
 
             // 1.1 DAILY QUOTA CHECK (Persisted in DB)

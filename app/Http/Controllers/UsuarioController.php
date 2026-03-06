@@ -138,7 +138,6 @@ class UsuarioController extends Controller
         $usuario->destacado_titulo_cache = $plan->nombre;
         
         $usuario->total_negocios = 0;
-        $usuario->total_items = 0;
         $usuario->ia_consultas_mes_actual = 0;
         $usuario->activo = 0; // Desactivado hasta que verifique correo
         $usuario->save();
@@ -207,7 +206,6 @@ class UsuarioController extends Controller
         $usuario->destacado_titulo_cache = $plan->nombre;
         
         $usuario->total_negocios = 0;
-        $usuario->total_items = 0;
         $usuario->ia_consultas_mes_actual = 0;
 
         $usuario->save();

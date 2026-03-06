@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\OfertaEmpleo;
+use App\Models\Negocio;
 use Validator;
 
 class OfertaEmpleoController extends Controller
@@ -55,6 +56,11 @@ class OfertaEmpleoController extends Controller
             'expira_en' => $request->expira_en, // TODO: Si es null colocar +30 días
             'activo' => 1,
         ]);
+
+        $negocio = Negocio::find($request->id_negocio);
+        if ($negocio) {
+            $negocio->increment('total_ofertas_empleo');
+        }
 
         return response()->json(['message' => 'Oferta creada exitosamente', 'data' => $oferta], 201);
     }
@@ -143,10 +149,14 @@ class OfertaEmpleoController extends Controller
             return response()->json(['message' => 'Oferta no encontrada'], 404);
         }
 
-        $oferta->activo = 0;
-        $oferta->save();
-
         $oferta->delete();
+        
+        if ($oferta->id_negocio) {
+            $negocio = Negocio::find($oferta->id_negocio);
+            if ($negocio) {
+                $negocio->decrement('total_ofertas_empleo');
+            }
+        }
 
         return response()->json(['message' => 'Oferta eliminada correctamente'], 200);
     }
