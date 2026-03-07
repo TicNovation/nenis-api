@@ -225,6 +225,39 @@ class NegocioController extends Controller
     }
 
     /**
+     * Cambiar solo el estatus de un negocio.
+     */
+    public function cambiarEstatus(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'id_negocio' => 'required|integer',
+            'estatus' => 'required|string|in:borrador,publicado,pausado',
+            'id_usuario' => 'sometimes|integer',
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $id_operador = $this->obtenerUsuarioId($request, $request->id_usuario);
+        $negocio = Negocio::where('id', $request->id_negocio)
+            ->where('id_usuario', $id_operador)
+            ->first();
+
+        if (!$negocio) {
+            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+        }
+
+        $negocio->estatus = $request->estatus;
+        $negocio->save();
+
+        // Limpiar caché del perfil público
+        Cache::forget("negocio_perfil_{$negocio->slug}");
+
+        return response()->json(['message' => 'Estatus actualizado exitosamente', 'data' => ['estatus' => $negocio->estatus]], 200);
+    }
+
+    /**
      * Encontrar un negocio específico por ID.
      */
     public function encontrar(Request $request, int $id, ?int $usuario_id = null)

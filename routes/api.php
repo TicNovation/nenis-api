@@ -184,6 +184,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
     Route::get('negocio/listar/{usuario_id?}', [NegocioController::class, 'listar']);
     Route::post('negocio/crear', [NegocioController::class, 'crear'])->middleware('check.limits:negocios');
     Route::post('negocio/actualizar', [NegocioController::class, 'actualizar']);
+    Route::post('negocio/cambiar-estatus', [NegocioController::class, 'cambiarEstatus']);
     Route::get('negocio/encontrar/{id}/{usuario_id?}', [NegocioController::class, 'encontrar']);
     Route::post('negocio/eliminar', [NegocioController::class, 'eliminar']);
 
