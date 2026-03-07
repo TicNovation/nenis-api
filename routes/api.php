@@ -144,6 +144,8 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('kb/eliminar', [KbArticleController::class, 'eliminar']);
     Route::get('kb/encontrar/{id}', [KbArticleController::class, 'encontrar']);
 
+    // Membresías (Admin)
+    Route::get('admin/membresia/listar', [MembresiaController::class, 'listarAdmin']);
 });
 
 //Rutas compartidas
