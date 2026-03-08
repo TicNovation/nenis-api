@@ -58,6 +58,7 @@ class StripeController extends Controller
                     'price' => $stripePriceId,
                     'quantity' => 1, // La cantidad la define el ID de precio/meses del objeto
                 ]],
+                'allow_promotion_codes' => true,
                 'mode' => 'payment',
                 'success_url' => config('services.stripe.admin_panel_url') . '/success-payment?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url' => config('services.stripe.admin_panel_url') . '/dashboard/subscription?error=payment_cancelled',
