@@ -152,8 +152,8 @@ class UsuarioController extends Controller
             'exp' => time() + 86400 * 3
         ], config('jwt.secret_usuario'), 'HS256');
 
-        $url = "https://admin.nenis.com.mx/verificarcorreo?token=" . $token_verificacion;//PROD
-        $url = "http://localhost:8080/verificarcorreo?token=" . $token_verificacion;//DEV
+        $url = config('services.stripe.admin_panel_url')."/verificarcorreo?token=" . $token_verificacion;//PROD
+        //$url = "http://localhost:8080/verificarcorreo?token=" . $token_verificacion;//DEV
         Mail::to($usuario->correo)->send(new VerificacionEmail([
             'nombre' => $usuario->nombre,
             'url' => $url
