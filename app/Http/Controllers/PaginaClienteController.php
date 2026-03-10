@@ -223,7 +223,13 @@ class PaginaClienteController extends Controller
     }
 
     /**
-     * Buscar negocios por palabra clave
+     * Buscar negocios por palabra clave.
+     * Usa búsqueda por palabras individuales con scoring de relevancia:
+     * - Coincidencia exacta en nombre: +10 pts
+     * - Coincidencia parcial en nombre: +5 pts por palabra
+     * - Coincidencia en palabras clave: +3 pts por palabra
+     * - Coincidencia en slogan: +2 pts por palabra
+     * - Coincidencia en descripción: +1 pt por palabra
      */
     public function buscarNegocios(Request $request)
     {
@@ -246,14 +252,69 @@ class PaginaClienteController extends Controller
         if ($request->filled('buscar')) {
             $busqueda = $request->buscar;
             $busqueda_limpia = $this->normalizarTexto($busqueda);
-            $busqueda_sql = str_replace(' ', '%', $busqueda_limpia);
 
-            $query->where(function ($q) use ($busqueda, $busqueda_sql) {
-                $q->where('nombre', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('slogan', 'LIKE', "%{$busqueda}%")
-                    ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql}%");
-            });
+            // Separar en palabras individuales (máximo 5 para evitar abuso)
+            $palabras = array_slice(array_filter(explode(' ', $busqueda_limpia)), 0, 5);
+
+            if (!empty($palabras)) {
+                // --- Filtro: al menos UNA palabra debe coincidir en algún campo ---
+                $query->where(function ($q) use ($busqueda, $busqueda_limpia, $palabras) {
+                    // Coincidencia exacta de frase completa (como antes)
+                    $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                    $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql_frase}%")
+                        ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('slogan', 'LIKE', "%{$busqueda}%");
+
+                    // Coincidencia por cada palabra individual
+                    foreach ($palabras as $palabra) {
+                        if (mb_strlen($palabra) >= 3) { // Ignorar palabras muy cortas (de, en, la...)
+                            $q->orWhere('nombre', 'LIKE', "%{$palabra}%")
+                                ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$palabra}%")
+                                ->orWhere('descripcion', 'LIKE', "%{$palabra}%")
+                                ->orWhere('slogan', 'LIKE', "%{$palabra}%");
+                        }
+                    }
+                });
+
+                // --- Scoring de relevancia para ordenar los mejores resultados primero ---
+                $scoreSQL = [];
+                $bindings = [];
+
+                // +10 pts: nombre contiene la frase exacta
+                $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 10 ELSE 0 END)";
+                $bindings[] = "%{$busqueda}%";
+
+                // +8 pts: palabras clave contienen la frase completa normalizada
+                $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 8 ELSE 0 END)";
+                $bindings[] = "%{$busqueda_sql_frase}%";
+
+                // Por cada palabra individual, sumar puntos según el campo donde coincide
+                foreach ($palabras as $palabra) {
+                    if (mb_strlen($palabra) >= 3) {
+                        // +5 pts por palabra en nombre
+                        $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 5 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+
+                        // +3 pts por palabra en palabras_clave_normalizadas
+                        $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 3 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+
+                        // +2 pts por palabra en slogan
+                        $scoreSQL[] = "(CASE WHEN slogan LIKE ? THEN 2 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+
+                        // +1 pt por palabra en descripción
+                        $scoreSQL[] = "(CASE WHEN descripcion LIKE ? THEN 1 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+                    }
+                }
+
+                $scoreExpression = implode(' + ', $scoreSQL);
+                $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings)
+                    ->orderBy('relevancia', 'DESC');
+            }
         }
 
         $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
@@ -263,6 +324,8 @@ class PaginaClienteController extends Controller
             ->paginate($request->input('por_pagina', 100));
 
         $negocios->getCollection()->transform(function ($negocio) {
+            // Ocultar el campo de scoring interno del response
+            unset($negocio->relevancia);
             foreach ($negocio->sucursales as $sucursal) {
                 if ($sucursal->visibilidad_direccion !== 'completa') {
                     $sucursal->direccion_texto = null;
@@ -326,18 +389,58 @@ class PaginaClienteController extends Controller
                 ->where('estatus_verificacion', 'verificado')
                 ->visibilidadJerarquica($id_estado, $id_ciudad);
 
-            // Búsqueda por palabra clave si existe
+            // Búsqueda por palabra clave si existe (misma lógica de scoring que buscarNegocios)
             if ($request->filled('buscar')) {
                 $busqueda = $request->buscar;
                 $busqueda_limpia = $this->normalizarTexto($busqueda);
-                $busqueda_sql = str_replace(' ', '%', $busqueda_limpia);
+                $palabras = array_slice(array_filter(explode(' ', $busqueda_limpia)), 0, 5);
 
-                $query->where(function ($q) use ($busqueda, $busqueda_sql) {
-                    $q->where('nombre', 'LIKE', "%{$busqueda}%")
-                        ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
-                        ->orWhere('slogan', 'LIKE', "%{$busqueda}%")
-                        ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql}%");
-                });
+                if (!empty($palabras)) {
+                    $query->where(function ($q) use ($busqueda, $busqueda_limpia, $palabras) {
+                        $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                        $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                            ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql_frase}%")
+                            ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                            ->orWhere('slogan', 'LIKE', "%{$busqueda}%");
+
+                        foreach ($palabras as $palabra) {
+                            if (mb_strlen($palabra) >= 3) {
+                                $q->orWhere('nombre', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('descripcion', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('slogan', 'LIKE', "%{$palabra}%");
+                            }
+                        }
+                    });
+
+                    // Scoring de relevancia
+                    $scoreSQL = [];
+                    $bindings = [];
+
+                    $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 10 ELSE 0 END)";
+                    $bindings[] = "%{$busqueda}%";
+
+                    $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                    $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 8 ELSE 0 END)";
+                    $bindings[] = "%{$busqueda_sql_frase}%";
+
+                    foreach ($palabras as $palabra) {
+                        if (mb_strlen($palabra) >= 3) {
+                            $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 5 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 3 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN slogan LIKE ? THEN 2 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN descripcion LIKE ? THEN 1 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                        }
+                    }
+
+                    $scoreExpression = implode(' + ', $scoreSQL);
+                    $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings)
+                        ->orderBy('relevancia', 'DESC');
+                }
             }
 
             // Filtrar por categorías
@@ -355,6 +458,7 @@ class PaginaClienteController extends Controller
                 ->paginate($por_pagina);
 
             $negocios->getCollection()->transform(function ($negocio) {
+                unset($negocio->relevancia);
                 foreach ($negocio->sucursales as $sucursal) {
                     if ($sucursal->visibilidad_direccion !== 'completa') {
                         $sucursal->direccion_texto = null;
