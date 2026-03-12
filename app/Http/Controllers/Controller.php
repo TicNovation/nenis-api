@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 abstract class Controller
 {
-    public function subirArchivo($archivo, $extensionesPermitidas, $carpeta){
+    public function subirArchivo($archivo, $extensionesPermitidas, $carpeta, $filename = null){
         //Carpetas: negocios, productos, categorias, anuncios
         
         $ext = $archivo->getClientOriginalExtension();

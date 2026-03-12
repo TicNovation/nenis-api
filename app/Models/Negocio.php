@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Negocio extends Model
 {
@@ -92,18 +93,38 @@ class Negocio extends Model
 
 
     /**
+     * SCOPES NUEVOS (REFACCIONADOS)
+     * ---------------------------------------------------------
+     */
+
+    public function scopeVisibilidadJerarquica($query, $id_estado = null, $id_ciudad = null)
+    {
+        return $this->scopeVisibilidadJerarquicaOld($query, $id_estado, $id_ciudad);
+    }
+
+    public function scopeCercanosA($query, $lat, $lng, $radioKm = 50, $id_estado = null)
+    {
+        return $this->scopeCercanosAOld($query, $lat, $lng, $radioKm, $id_estado);
+    }
+
+    /**
+     * SCOPES ANTIGUOS (RESPALDO)
+     * ---------------------------------------------------------
+     */
+
+    /**
      * Scope para filtrar negocios por jerarquía de visibilidad (pais, estado, ciudad).
      */
-    public function scopeVisibilidadJerarquica($query, $id_estado = null, $id_ciudad = null)
+    public function scopeVisibilidadJerarquicaOld($query, $id_estado = null, $id_ciudad = null)
     {
         return $query->where(function ($q) use ($id_estado, $id_ciudad) {
             // 1. Nivel País o Público: Siempre visibles
-            $q->where('alcance_visibilidad', 'pais');
+            $q->where('negocios.alcance_visibilidad', 'pais');
 
             // 2. Nivel Estado: Visible si coincide el estado en alguna sucursal activa
             if ($id_estado) {
                 $q->orWhere(function ($sq) use ($id_estado) {
-                    $sq->where('alcance_visibilidad', 'estado')
+                    $sq->where('negocios.alcance_visibilidad', 'estado')
                        ->whereHas('sucursales', function ($ssq) use ($id_estado) {
                            $ssq->where('id_estado', $id_estado)->where('activo', 1);
                        });
@@ -113,12 +134,50 @@ class Negocio extends Model
             // 3. Nivel Ciudad: Visible si coincide la ciudad en alguna sucursal activa
             if ($id_ciudad) {
                 $q->orWhere(function ($sq) use ($id_ciudad) {
-                    $sq->where('alcance_visibilidad', 'ciudad')
+                    $sq->where('negocios.alcance_visibilidad', 'ciudad')
                        ->whereHas('sucursales', function ($ssq) use ($id_ciudad) {
                            $ssq->where('id_ciudad', $id_ciudad)->where('activo', 1);
                        });
                 });
             }
         });
+    }
+
+    /**
+     * Scope optimizado para búsqueda por cercanía (GPS)
+     * Utiliza Bounding Box para optimización de índices y Haversine para precisión.
+     */
+    public function scopeCercanosAOld($query, $lat, $lng, $radioKm = 50, $id_estado = null)
+    {
+        $lat = (float)$lat;
+        $lng = (float)$lng;
+
+        // Bounding Box para optimización de índices
+        $deltaLat = $radioKm / 111.1; 
+        $deltaLng = $radioKm / (111.1 * cos(deg2rad($lat)));
+
+        // Subconsulta para calcular distancias mínimas por negocio
+        // Esto evita el error ONLY_FULL_GROUP_BY al no mezclar negocios.* con GROUP BY
+        $subquery = DB::table('sucursales')
+            ->select('id_negocio')
+            ->selectRaw("MIN(6371 * acos(cos(radians(?)) * cos(radians(lat)) * cos(radians(lng) - radians(?)) + sin(radians(?)) * sin(radians(lat)))) AS distancia", [$lat, $lng, $lat])
+            ->where('activo', 1)
+            ->where('visibilidad_direccion', 'completa')
+            ->whereBetween('lat', [$lat - $deltaLat, $lat + $deltaLat])
+            ->whereBetween('lng', [$lng - $deltaLng, $lng + $deltaLng]);
+
+        if ($id_estado) {
+            $subquery->where('id_estado', $id_estado);
+        }
+
+        $subquery->groupBy('id_negocio')
+            ->having('distancia', '<=', $radioKm);
+
+        // Unimos la subconsulta a la consulta principal
+        return $query->joinSub($subquery, 'localidades', function ($join) {
+                $join->on('negocios.id', '=', 'localidades.id_negocio');
+            })
+            ->select('negocios.*', 'localidades.distancia')
+            ->orderBy('localidades.distancia', 'ASC');
     }
 }

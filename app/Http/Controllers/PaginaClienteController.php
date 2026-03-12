@@ -238,16 +238,171 @@ class PaginaClienteController extends Controller
             'id_estado' => 'sometimes|nullable|integer',
             'id_ciudad' => 'sometimes|nullable|integer',
             'por_pagina' => 'sometimes|integer|min:1|max:100',
+            'solo_con_ubicacion' => 'sometimes|boolean',
+            'lat' => 'sometimes|numeric',
+            'lng' => 'sometimes|numeric',
+            'radio' => 'sometimes|numeric|min:1|max:100',
         ]);
 
         if ($validate->fails()) {
             return response()->json(['message' => $validate->errors()->first()], 400);
         }
 
-        $query = Negocio::where('activo', 1)
-            ->where('estatus', 'publicado')
-            ->where('estatus_verificacion', 'verificado')
-            ->visibilidadJerarquica($request->id_estado, $request->id_ciudad);
+        $query = Negocio::where('negocios.activo', 1)
+            ->where('negocios.estatus', 'publicado')
+            ->where('negocios.estatus_verificacion', 'verificado');
+
+        // 1. Filtrado por Ubicación (GPS o Jerárquico)
+        if ($request->boolean('solo_con_ubicacion') && $request->filled(['lat', 'lng'])) {
+            $query->cercanosA($request->lat, $request->lng, $request->radio ?? 10, $request->id_estado);
+        } else {
+            $query->visibilidadJerarquica($request->id_estado, $request->id_ciudad);
+            
+            // Prioridad Inteligente: 
+            // 1. Negocios que TIENEN sucursal en la ciudad buscada (Prioridad Local Real)
+            // 2. Luego el orden por alcance configurado como tie-breaker
+            if ($request->filled('id_ciudad')) {
+                $query->orderByRaw("
+                    (CASE WHEN EXISTS (
+                        SELECT 1 FROM sucursales 
+                        WHERE sucursales.id_negocio = negocios.id 
+                        AND sucursales.id_ciudad = ? 
+                        AND sucursales.activo = 1
+                    ) THEN 0 ELSE 1 END) ASC,
+                    FIELD(negocios.alcance_visibilidad, 'ciudad', 'estado', 'pais') ASC
+                ", [$request->id_ciudad]);
+            } else {
+                $query->orderByRaw("FIELD(negocios.alcance_visibilidad, 'ciudad', 'estado', 'pais') ASC");
+            }
+        }
+
+        // 2. Búsqueda por Texto y Scoring de Relevancia
+        if ($request->filled('buscar')) {
+            $busqueda = $request->buscar;
+            $busqueda_limpia = $this->normalizarTexto($busqueda);
+            $palabras = array_slice(array_filter(explode(' ', $busqueda_limpia)), 0, 5);
+
+            if (!empty($palabras)) {
+                $query->where(function ($q) use ($busqueda, $busqueda_limpia, $palabras) {
+                    $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+
+                    $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql_frase}%")
+                        ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                        ->orWhere('slogan', 'LIKE', "%{$busqueda}%");
+
+                    foreach ($palabras as $palabra) {
+                        if (mb_strlen($palabra) >= 3) {
+                            $q->orWhere('nombre', 'LIKE', "%{$palabra}%")
+                                ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$palabra}%")
+                                ->orWhere('descripcion', 'LIKE', "%{$palabra}%")
+                                ->orWhere('slogan', 'LIKE', "%{$palabra}%");
+                        }
+                    }
+                });
+
+                $scoreSQL = [];
+                $bindings = [];
+                $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 10 ELSE 0 END)";
+                $bindings[] = "%{$busqueda}%";
+                $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 8 ELSE 0 END)";
+                $bindings[] = "%{$busqueda_sql_frase}%";
+
+                foreach ($palabras as $palabra) {
+                    if (mb_strlen($palabra) >= 3) {
+                        $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 5 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+                        $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 3 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+                        $scoreSQL[] = "(CASE WHEN slogan LIKE ? THEN 2 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+                        $scoreSQL[] = "(CASE WHEN descripcion LIKE ? THEN 1 ELSE 0 END)";
+                        $bindings[] = "%{$palabra}%";
+                    }
+                }
+
+                $scoreExpression = implode(' + ', $scoreSQL);
+                
+                if ($request->boolean('solo_con_ubicacion')) {
+                    $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
+                        ->addBinding($bindings, 'select');
+                } else {
+                    $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
+                }
+                
+                $query->orderBy('relevancia', 'DESC');
+            }
+        }
+
+        // 3. Orden por Prioridad de Plan (Elite > Pro > Básico) y Paginación
+        $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+                $q->where('activo', 1)->with(['estado', 'ciudad']);
+            }])
+            ->orderBy('prioridad_cache', 'DESC')
+            ->paginate($request->input('por_pagina', 100));
+
+        $negocios->getCollection()->transform(function ($negocio) use ($request) {
+            unset($negocio->relevancia);
+
+            // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
+            if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
+                $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
+                    $score = 100; 
+                    if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) {
+                        $score = 0;
+                    } elseif ($request->filled('id_estado') && $s->id_estado == $request->id_estado) {
+                        $score = 50;
+                    }
+
+                    if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
+                        $dist = pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2);
+                        $score += $dist;
+                    }
+                    return $score;
+                })->values());
+            }
+
+            foreach ($negocio->sucursales as $sucursal) {
+                if ($sucursal->visibilidad_direccion !== 'completa') {
+                    $sucursal->direccion_texto = null;
+                    $sucursal->codigo_postal = null;
+                    $sucursal->lat = null;
+                    $sucursal->lng = null;
+                }
+            }
+            return $negocio;
+        });
+
+        return response()->json(['data' => $negocios], 200);
+    }
+
+    public function buscarNegociosOld(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'buscar' => 'sometimes|nullable|string|min:3',
+            'id_estado' => 'sometimes|nullable|integer',
+            'id_ciudad' => 'sometimes|nullable|integer',
+            'por_pagina' => 'sometimes|integer|min:1|max:100',
+            'solo_con_ubicacion' => 'sometimes|boolean',
+            'lat' => 'sometimes|numeric',
+            'lng' => 'sometimes|numeric',
+            'radio' => 'sometimes|numeric|min:1|max:100',
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $query = Negocio::where('negocios.activo', 1)
+            ->where('negocios.estatus', 'publicado')
+            ->where('negocios.estatus_verificacion', 'verificado');
+
+        if ($request->boolean('solo_con_ubicacion') && $request->filled(['lat', 'lng'])) {
+            $query->cercanosAOld($request->lat, $request->lng, $request->radio ?? 50, $request->id_estado);
+        } else {
+            $query->visibilidadJerarquicaOld($request->id_estado, $request->id_ciudad);
+        }
 
         if ($request->filled('buscar')) {
             $busqueda = $request->buscar;
@@ -312,8 +467,16 @@ class PaginaClienteController extends Controller
                 }
 
                 $scoreExpression = implode(' + ', $scoreSQL);
-                $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings)
-                    ->orderBy('relevancia', 'DESC');
+                
+                // Si ya seleccionamos distancia en el scopeCercanosA, usamos addSelect para no perderla
+                if ($request->boolean('solo_con_ubicacion')) {
+                    $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
+                        ->addBinding($bindings, 'select');
+                } else {
+                    $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
+                }
+                
+                $query->orderBy('relevancia', 'DESC');
             }
         }
 
@@ -323,9 +486,27 @@ class PaginaClienteController extends Controller
             ->orderBy('prioridad_cache', 'DESC')
             ->paginate($request->input('por_pagina', 100));
 
-        $negocios->getCollection()->transform(function ($negocio) {
-            // Ocultar el campo de scoring interno del response
+        $negocios->getCollection()->transform(function ($negocio) use ($request) {
             unset($negocio->relevancia);
+
+            // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
+            if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
+                $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
+                    // Prioridad 1: Coincidencia exacta de Ciudad
+                    if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) return 0;
+                    
+                    // Prioridad 2: Cercanía GPS (si el usuario mandó lat/lng)
+                    if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
+                        return pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2) + 1;
+                    }
+                    
+                    // Prioridad 3: Coincidencia de Estado
+                    if ($request->filled('id_estado') && $s->id_estado == $request->id_estado) return 10;
+                    
+                    return 100; // El resto al final
+                })->values());
+            }
+
             foreach ($negocio->sucursales as $sucursal) {
                 if ($sucursal->visibilidad_direccion !== 'completa') {
                     $sucursal->direccion_texto = null;
@@ -343,6 +524,9 @@ class PaginaClienteController extends Controller
     /**
      * Buscar negocios por categoría padre e hijos
      */
+    /**
+     * Buscar negocios por categoría padre e hijos (Versión Refaccionada)
+     */
     public function buscarNegociosPorCategoria(Request $request)
     {
         $validate = Validator::make($request->all(), [
@@ -352,6 +536,11 @@ class PaginaClienteController extends Controller
             'por_pagina' => 'sometimes|integer|min:1|max:100',
             'buscar' => 'sometimes|nullable|string',
             'page' => 'sometimes|integer',
+            'subcategorias' => 'sometimes|nullable',
+            'solo_con_ubicacion' => 'sometimes|boolean',
+            'lat' => 'sometimes|numeric',
+            'lng' => 'sometimes|numeric',
+            'radio' => 'sometimes|numeric|min:1|max:100',
         ]);
 
         if ($validate->fails()) {
@@ -364,10 +553,19 @@ class PaginaClienteController extends Controller
         $page = $request->page ?? 1;
         $buscar = $request->buscar ?? '';
         $por_pagina = $request->input('por_pagina', 100);
+        $radio = $request->radio ?? 10;
 
-        $cacheKey = "search_cat_{$slug_cat}_e{$id_estado}_c{$id_ciudad}_b{$buscar}_pp{$por_pagina}_p{$page}";
+        $subcategorias_input = $request->input('subcategorias', []);
+        $subcategorias_str = is_array($subcategorias_input) ? implode(',', $subcategorias_input) : $subcategorias_input;
+        
+        $lat = $request->lat ?? 0;
+        $lng = $request->lng ?? 0;
+        $solo_gps = $request->boolean('solo_con_ubicacion') ? 1 : 0;
 
-        $data = Cache::remember($cacheKey, 1800, function() use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina) {
+        // Caché con prefijo v2 para evitar colisión con la lógica antigua
+        $cacheKey = "search_cat_v2_{$slug_cat}_e{$id_estado}_c{$id_ciudad}_b{$buscar}_pp{$por_pagina}_p{$page}_s{$subcategorias_str}_gps{$solo_gps}_l{$lat}_g{$lng}_r{$radio}";
+
+        $data = Cache::remember($cacheKey, 1800, function() use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina, $subcategorias_input, $radio) {
             $categoria = Categoria::where('slug', $slug_cat)->where('activo', 1)->first();
 
             if (!$categoria) {
@@ -381,13 +579,222 @@ class PaginaClienteController extends Controller
                 ->where('activo', 1)
                 ->get();
 
-            $ids_categorias = $subcategorias->pluck('id')->toArray();
-            array_push($ids_categorias, $id_categoria);
+            $ids_categorias = [];
+            if (!empty($subcategorias_input)) {
+                $ids_categorias = is_array($subcategorias_input) ? $subcategorias_input : explode(',', $subcategorias_input);
+            } else {
+                $ids_categorias = $subcategorias->pluck('id')->toArray();
+                array_push($ids_categorias, $id_categoria);
+            }
 
-            $query = Negocio::where('activo', 1)
-                ->where('estatus', 'publicado')
-                ->where('estatus_verificacion', 'verificado')
-                ->visibilidadJerarquica($id_estado, $id_ciudad);
+            $query = Negocio::where('negocios.activo', 1)
+                ->where('negocios.estatus', 'publicado')
+                ->where('negocios.estatus_verificacion', 'verificado');
+
+            // 1. Ubicación y Prioridad Local
+            if ($request->boolean('solo_con_ubicacion') && $request->filled(['lat', 'lng'])) {
+                $query->cercanosA($request->lat, $request->lng, $radio, $id_estado);
+            } else {
+                $query->visibilidadJerarquica($id_estado, $id_ciudad);
+                
+                if ($id_ciudad) {
+                    $query->orderByRaw("
+                        (CASE WHEN EXISTS (
+                            SELECT 1 FROM sucursales 
+                            WHERE sucursales.id_negocio = negocios.id 
+                            AND sucursales.id_ciudad = ? 
+                            AND sucursales.activo = 1
+                        ) THEN 0 ELSE 1 END) ASC,
+                        FIELD(negocios.alcance_visibilidad, 'ciudad', 'estado', 'pais') ASC
+                    ", [$id_ciudad]);
+                } else {
+                    $query->orderByRaw("FIELD(negocios.alcance_visibilidad, 'ciudad', 'estado', 'pais') ASC");
+                }
+            }
+
+            // 2. Búsqueda por Texto (Scoring)
+            if ($request->filled('buscar')) {
+                $busqueda = $request->buscar;
+                $busqueda_limpia = $this->normalizarTexto($busqueda);
+                $palabras = array_slice(array_filter(explode(' ', $busqueda_limpia)), 0, 5);
+
+                if (!empty($palabras)) {
+                    $query->where(function ($q) use ($busqueda, $busqueda_limpia, $palabras) {
+                        $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                        $q->where('nombre', 'LIKE', "%{$busqueda}%")
+                            ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$busqueda_sql_frase}%")
+                            ->orWhere('descripcion', 'LIKE', "%{$busqueda}%")
+                            ->orWhere('slogan', 'LIKE', "%{$busqueda}%");
+
+                        foreach ($palabras as $palabra) {
+                            if (mb_strlen($palabra) >= 3) {
+                                $q->orWhere('nombre', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('palabras_clave_normalizadas', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('descripcion', 'LIKE', "%{$palabra}%")
+                                    ->orWhere('slogan', 'LIKE', "%{$palabra}%");
+                            }
+                        }
+                    });
+
+                    $scoreSQL = [];
+                    $bindings = [];
+                    $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 10 ELSE 0 END)";
+                    $bindings[] = "%{$busqueda}%";
+                    $busqueda_sql_frase = str_replace(' ', '%', $busqueda_limpia);
+                    $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 8 ELSE 0 END)";
+                    $bindings[] = "%{$busqueda_sql_frase}%";
+
+                    foreach ($palabras as $palabra) {
+                        if (mb_strlen($palabra) >= 3) {
+                            $scoreSQL[] = "(CASE WHEN nombre LIKE ? THEN 5 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN palabras_clave_normalizadas LIKE ? THEN 3 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN slogan LIKE ? THEN 2 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                            $scoreSQL[] = "(CASE WHEN descripcion LIKE ? THEN 1 ELSE 0 END)";
+                            $bindings[] = "%{$palabra}%";
+                        }
+                    }
+
+                    $scoreExpression = implode(' + ', $scoreSQL);
+                    
+                    if ($request->boolean('solo_con_ubicacion')) {
+                        $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
+                            ->addBinding($bindings, 'select');
+                    } else {
+                        $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
+                    }
+                    
+                    $query->orderBy('relevancia', 'DESC');
+                }
+            }
+
+            // 3. Filtrar por categorías
+            $query->where(function ($q) use ($ids_categorias) {
+                $q->whereIn('id_categoria_principal', $ids_categorias)
+                ->orWhereHas('categorias', function ($sq) use ($ids_categorias) {
+                    $sq->whereIn('id_categoria', $ids_categorias);
+                });
+            });
+
+            // 4. Orden Final (Planes) y Paginación
+            $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+                    $q->where('activo', 1)->with(['estado', 'ciudad']);
+                }])
+                ->orderBy('prioridad_cache', 'DESC')
+                ->paginate($por_pagina);
+
+            $negocios->getCollection()->transform(function ($negocio) use ($request) {
+                unset($negocio->relevancia);
+
+                // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
+                if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
+                    $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
+                        if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) return 0;
+                        if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
+                            return pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2) + 1;
+                        }
+                        if ($request->filled('id_estado') && $s->id_estado == $request->id_estado) return 10;
+                        return 100;
+                    })->values());
+                }
+
+                foreach ($negocio->sucursales as $sucursal) {
+                    if ($sucursal->visibilidad_direccion !== 'completa') {
+                        $sucursal->direccion_texto = null;
+                        $sucursal->codigo_postal = null;
+                        $sucursal->lat = null;
+                        $sucursal->lng = null;
+                    }
+                }
+                return $negocio;
+            });
+
+            return [
+                'categoria' => $categoria,
+                'subcategorias' => $subcategorias,
+                'negocios' => $negocios,
+            ];
+        });
+
+        if (!$data) {
+            return response()->json(['message' => 'Categoría no encontrada'], 404);
+        }
+
+        return response()->json(['data' => $data], 200)
+            ->setPublic()
+            ->setMaxAge(300);
+    }
+
+    public function buscarNegociosPorCategoriaOld(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'slug' => 'required|string',
+            'id_estado' => 'sometimes|nullable|integer',
+            'id_ciudad' => 'sometimes|nullable|integer',
+            'por_pagina' => 'sometimes|integer|min:1|max:100',
+            'buscar' => 'sometimes|nullable|string',
+            'page' => 'sometimes|integer',
+            'subcategorias' => 'sometimes|nullable',
+            'solo_con_ubicacion' => 'sometimes|boolean',
+            'lat' => 'sometimes|numeric',
+            'lng' => 'sometimes|numeric',
+            'radio' => 'sometimes|numeric|min:1|max:100',
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json(['message' => $validate->errors()->first()], 400);
+        }
+
+        $slug_cat = $request->slug;
+        $id_estado = $request->id_estado;
+        $id_ciudad = $request->id_ciudad;
+        $page = $request->page ?? 1;
+        $buscar = $request->buscar ?? '';
+        $por_pagina = $request->input('por_pagina', 100);
+
+        $subcategorias_input = $request->input('subcategorias', []);
+        $subcategorias_str = is_array($subcategorias_input) ? implode(',', $subcategorias_input) : $subcategorias_input;
+        
+        $lat = $request->lat ?? 0;
+        $lng = $request->lng ?? 0;
+        $radio = $request->radio ?? 50;
+        $solo_gps = $request->boolean('solo_con_ubicacion') ? 1 : 0;
+
+        $cacheKey = "search_cat_{$slug_cat}_e{$id_estado}_c{$id_ciudad}_b{$buscar}_pp{$por_pagina}_p{$page}_s{$subcategorias_str}_gps{$solo_gps}_l{$lat}_g{$lng}_r{$radio}";
+
+        $data = Cache::remember($cacheKey, 1800, function() use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina, $subcategorias_input) {
+            $categoria = Categoria::where('slug', $slug_cat)->where('activo', 1)->first();
+
+            if (!$categoria) {
+                return null;
+            }
+
+            $id_categoria = $categoria->id;
+
+            // Obtener subcategorías
+            $subcategorias = Categoria::where('id_padre', $id_categoria)
+                ->where('activo', 1)
+                ->get();
+
+            $ids_categorias = [];
+            if (!empty($subcategorias_input)) {
+                $ids_categorias = is_array($subcategorias_input) ? $subcategorias_input : explode(',', $subcategorias_input);
+            } else {
+                $ids_categorias = $subcategorias->pluck('id')->toArray();
+                array_push($ids_categorias, $id_categoria);
+            }
+
+            $query = Negocio::where('negocios.activo', 1)
+                ->where('negocios.estatus', 'publicado')
+                ->where('negocios.estatus_verificacion', 'verificado');
+
+            if ($request->boolean('solo_con_ubicacion') && $request->filled(['lat', 'lng'])) {
+                $query->cercanosAOld($request->lat, $request->lng, $request->radio ?? 50, $id_estado);
+            } else {
+                $query->visibilidadJerarquicaOld($id_estado, $id_ciudad);
+            }
 
             // Búsqueda por palabra clave si existe (misma lógica de scoring que buscarNegocios)
             if ($request->filled('buscar')) {
@@ -438,8 +845,15 @@ class PaginaClienteController extends Controller
                     }
 
                     $scoreExpression = implode(' + ', $scoreSQL);
-                    $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings)
-                        ->orderBy('relevancia', 'DESC');
+                    
+                    if ($request->boolean('solo_con_ubicacion')) {
+                        $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
+                            ->addBinding($bindings, 'select');
+                    } else {
+                        $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
+                    }
+                    
+                    $query->orderBy('relevancia', 'DESC');
                 }
             }
 
@@ -457,8 +871,27 @@ class PaginaClienteController extends Controller
                 ->orderBy('prioridad_cache', 'DESC')
                 ->paginate($por_pagina);
 
-            $negocios->getCollection()->transform(function ($negocio) {
+            $negocios->getCollection()->transform(function ($negocio) use ($request) {
                 unset($negocio->relevancia);
+
+                // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
+                if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
+                    $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
+                        $score = 100;
+                        if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) {
+                            $score = 0;
+                        } elseif ($request->filled('id_estado') && $s->id_estado == $request->id_estado) {
+                            $score = 50;
+                        }
+
+                        if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
+                            $dist = pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2);
+                            $score += $dist;
+                        }
+                        return $score;
+                    })->values());
+                }
+
                 foreach ($negocio->sucursales as $sucursal) {
                     if ($sucursal->visibilidad_direccion !== 'completa') {
                         $sucursal->direccion_texto = null;
@@ -488,7 +921,14 @@ class PaginaClienteController extends Controller
 
     public function encontrarNegocio(Request $request, $slug)
     {
-        $negocio = Cache::remember("negocio_perfil_{$slug}", 3600, function() use ($slug) {
+        $id_estado = $request->id_estado;
+        $id_ciudad = $request->id_ciudad;
+        $lat = $request->lat;
+        $lng = $request->lng;
+
+        $cacheKey = "negocio_perfil_{$slug}_e{$id_estado}_c{$id_ciudad}_l{$lat}_g{$lng}";
+
+        $negocio = Cache::remember($cacheKey, 3600, function() use ($request, $slug, $id_estado, $id_ciudad, $lat, $lng) {
             $n = Negocio::where('slug', $slug)
                 ->where('activo', 1)
                 ->where('estatus', 'publicado')
@@ -509,6 +949,24 @@ class PaginaClienteController extends Controller
                 ->first();
 
             if ($n) {
+                // Reordenar sucursales según contexto si aplica
+                if ($id_ciudad || ($lat && $lng) || $id_estado) {
+                    $n->setRelation('sucursales', $n->sucursales->sortBy(function ($s) use ($id_ciudad, $id_estado, $lat, $lng) {
+                        $score = 100;
+                        if ($id_ciudad && $s->id_ciudad == $id_ciudad) {
+                            $score = 0;
+                        } elseif ($id_estado && $s->id_estado == $id_estado) {
+                            $score = 50;
+                        }
+
+                        if ($lat && $lng && $s->lat && $s->lng) {
+                            $dist = pow($s->lat - (float)$lat, 2) + pow($s->lng - (float)$lng, 2);
+                            $score += $dist;
+                        }
+                        return $score;
+                    })->values());
+                }
+
                 foreach ($n->sucursales as $sucursal) {
                     if ($sucursal->visibilidad_direccion !== 'completa') {
                         $sucursal->direccion_texto = null;
