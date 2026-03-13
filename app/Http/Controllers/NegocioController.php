@@ -87,8 +87,8 @@ class NegocioController extends Controller
         $negocio->instagram = $request->instagram;
         $negocio->tiktok = $request->tiktok;
         
-        $negocio->estatus = 'borrador'; // Por defecto al crear
-        $negocio->estatus_verificacion = 'pendiente';
+        $negocio->estatus = 'publicado';  // Por defecto al crear, despues cambiar a **borrador**
+        $negocio->estatus_verificacion = 'verificado'; // Por defecto al crear, despues cambiar a **pendiente**
         $negocio->activo = 1;
         $negocio->total_imagenes = 0;
         $negocio->total_sucursales = 0;
@@ -300,6 +300,9 @@ class NegocioController extends Controller
             return response()->json(['message' => 'Negocio no encontrado'], 404);
         }
 
+        $this->eliminarArchivo($negocio->ruta_logo);
+        $this->eliminarArchivo($negocio->ruta_imagen_destacada);
+
         $negocio->delete();
 
         // Decrementamos el contador del usuario
@@ -374,6 +377,9 @@ class NegocioController extends Controller
         if (!$negocio) {
             return response()->json(['message' => 'Negocio no encontrado'], 404);
         }
+
+        $this->eliminarArchivo($negocio->ruta_logo);
+        $this->eliminarArchivo($negocio->ruta_imagen_destacada);
 
         $negocio->delete();
 
