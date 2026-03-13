@@ -47,8 +47,8 @@ class NegocioController extends Controller
             'facebook' => 'nullable|string|max:190',
             'instagram' => 'nullable|string|max:190',
             'tiktok' => 'nullable|string|max:190',
-            'ruta_logo' => 'nullable|image|max:4048',
-            'ruta_imagen_destacada' => 'nullable|image|max:4048',
+            'ruta_logo' => 'nullable|image|max:5120',
+            'ruta_imagen_destacada' => 'nullable|image|max:5120',
         ]);
 
         if ($validate->fails()) {
@@ -97,11 +97,11 @@ class NegocioController extends Controller
 
 
         if ($request->hasFile('ruta_logo')) {
-            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
+            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'negocios');
         }
 
         if ($request->hasFile('ruta_imagen_destacada')) {
-            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
+            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'negocios');
         }
 
         $negocio->save();
@@ -135,6 +135,8 @@ class NegocioController extends Controller
             'estatus' => 'sometimes|string|in:borrador,publicado,pausado',
             'alcance_visibilidad' => 'sometimes|string|in:ciudad,estado,pais',
             'categorias_extra' => 'nullable|string', // JSON string of category IDs
+            'ruta_logo' => 'nullable|image|max:5120',
+            'ruta_imagen_destacada' => 'nullable|image|max:5120',
         ]);
 
         if ($validate->fails()) {
@@ -183,14 +185,14 @@ class NegocioController extends Controller
             if ($negocio->ruta_logo) {
                 $this->eliminarArchivo($negocio->ruta_logo);
             }
-            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
+            $negocio->ruta_logo = $this->subirArchivo($request->file('ruta_logo'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'negocios');
         }
 
         if ($request->hasFile('ruta_imagen_destacada')) {
             if ($negocio->ruta_imagen_destacada) {
                 $this->eliminarArchivo($negocio->ruta_imagen_destacada);
             }
-            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'negocios');
+            $negocio->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'negocios');
         }
 
         $negocio->save();

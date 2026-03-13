@@ -12,7 +12,7 @@ class ImagenItemController extends Controller
     public function crear(Request $request){
         $validate = Validator::make($request->all(), [
             'id_item' => 'required|integer',
-            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif,heic,heif|max:5120',
         ]);
 
         if ($validate->fails()) {
@@ -29,7 +29,7 @@ class ImagenItemController extends Controller
 
         $imagen_item = ImagenItem::create([
             'id_item' => $request->id_item,
-            'ruta' => $this->subirArchivo($request->file('imagen'), ['jpg', 'jpeg', 'png', 'gif'], 'productos'),
+            'ruta' => $this->subirArchivo($request->file('imagen'), ['jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'], 'productos'),
         ]);
 
         return response()->json(['data' => $imagen_item, 'message' => 'Imagen subida exitosamente'], 201);

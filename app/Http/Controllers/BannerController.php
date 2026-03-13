@@ -47,7 +47,7 @@ class BannerController extends Controller
         $banner->alcance_nivel = $request->alcance_nivel;
         $banner->activo = $request->activo;
         if($request->hasFile('imagen')){
-            $banner->ruta_imagen = $this->subirArchivo($request->file('imagen'),  ['jpeg', 'png', 'jpg', 'webp'], 'anuncios');
+            $banner->ruta_imagen = $this->subirArchivo($request->file('imagen'),  ['jpeg', 'png', 'jpg', 'webp', 'heic', 'heif'], 'anuncios');
         }
         $banner->save();
 
@@ -94,7 +94,7 @@ class BannerController extends Controller
         $banner->activo = $request->activo;
         if($request->hasFile('imagen')){
             $this->eliminarArchivo($banner->ruta_imagen);
-            $banner->ruta_imagen = $this->subirArchivo($request->file('imagen'),  ['jpeg', 'png', 'jpg', 'webp'], 'anuncios');
+            $banner->ruta_imagen = $this->subirArchivo($request->file('imagen'),  ['jpeg', 'png', 'jpg', 'webp', 'heic', 'heif'], 'anuncios');
         }
         $banner->save();
 

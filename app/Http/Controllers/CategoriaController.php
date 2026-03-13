@@ -52,7 +52,7 @@ class CategoriaController extends Controller
         $validate = Validator::make($request->all(), [
             'nombre' => 'required|string|max:100',
             'id_padre' => 'nullable|integer',
-            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp,heic,heif|max:5120',
             'activo' => 'required|boolean',
         ]);
 
@@ -67,7 +67,7 @@ class CategoriaController extends Controller
         $categoria->activo = $request->activo;
 
         if ($request->hasFile('imagen')) {
-            $categoria->ruta_imagen_destacada = $this->subirArchivo($request->file('imagen'), ['jpeg', 'png', 'jpg', 'webp'], 'categorias');
+            $categoria->ruta_imagen_destacada = $this->subirArchivo($request->file('imagen'), ['jpeg', 'png', 'jpg', 'webp', 'heic', 'heif'], 'categorias');
         }
 
         $categoria->save();
@@ -88,7 +88,7 @@ class CategoriaController extends Controller
             'id' => 'required|integer',
             'nombre' => 'required|string|max:100',
             'id_padre' => 'nullable|integer',
-            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'imagen' => 'nullable|image|mimes:jpeg,png,jpg,webp,heic,heif|max:5120',
             'activo' => 'required|boolean',
         ]);
 
@@ -111,7 +111,7 @@ class CategoriaController extends Controller
             if ($categoria->ruta_imagen_destacada) {
                 $this->eliminarArchivo($categoria->ruta_imagen_destacada);
             }
-            $categoria->ruta_imagen_destacada = $this->subirArchivo($request->file('imagen'), ['jpeg', 'png', 'jpg', 'webp'], 'categorias');
+            $categoria->ruta_imagen_destacada = $this->subirArchivo($request->file('imagen'), ['jpeg', 'png', 'jpg', 'webp', 'heic', 'heif'], 'categorias');
         }
 
         $categoria->save();

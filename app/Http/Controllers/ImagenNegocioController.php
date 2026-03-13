@@ -13,7 +13,7 @@ class ImagenNegocioController extends Controller
     {
         $validate = Validator::make($request->all(), [
             'id_negocio' => 'required|integer',
-            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif|max:3048',
+            'imagen' => 'required|image|mimes:jpeg,png,jpg,gif,heic,heif|max:5120',
         ]);
 
         if ($validate->fails()) {
@@ -30,7 +30,7 @@ class ImagenNegocioController extends Controller
 
         $imagen_negocio = ImagenNegocio::create([
             'id_negocio' => $request->id_negocio,
-            'ruta' => $this->subirArchivo($request->file('imagen'), ['jpg', 'jpeg', 'png', 'gif'], 'negocios'),
+            'ruta' => $this->subirArchivo($request->file('imagen'), ['jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'], 'negocios'),
         ]);
 
         $negocio->increment('total_imagenes');

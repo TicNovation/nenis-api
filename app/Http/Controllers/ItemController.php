@@ -52,7 +52,7 @@ class ItemController extends Controller
             'tipo_item' => 'required|in:producto,servicio',
             'precio' => 'required|numeric|min:0',
             'url_externa' => 'nullable|url|max:255',
-            'ruta_imagen_destacada' => 'nullable|image|max:3048',
+            'ruta_imagen_destacada' => 'nullable|image|max:5120',
             'id_usuario' => 'sometimes|integer',
         ]);
 
@@ -88,7 +88,7 @@ class ItemController extends Controller
         $item->activo = 1;
 
         if ($request->hasFile('ruta_imagen_destacada')) {
-            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos');
+            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'productos');
         }
 
         $item->save();
@@ -112,7 +112,7 @@ class ItemController extends Controller
             'tipo_item' => 'required|in:producto,servicio',
             'precio' => 'required|numeric|min:0',
             'url_externa' => 'nullable|url|max:255',
-            'ruta_imagen_destacada' => 'nullable|image|max:2048',
+            'ruta_imagen_destacada' => 'nullable|image|max:5120',
             'activo' => 'sometimes|boolean',
             'id_usuario' => 'sometimes|integer',
         ]);
@@ -143,7 +143,7 @@ class ItemController extends Controller
             if ($item->ruta_imagen_destacada) {
                 $this->eliminarArchivo($item->ruta_imagen_destacada);
             }
-            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp'], 'productos');
+            $item->ruta_imagen_destacada = $this->subirArchivo($request->file('ruta_imagen_destacada'), ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'], 'productos');
         }
 
         $item->save();
