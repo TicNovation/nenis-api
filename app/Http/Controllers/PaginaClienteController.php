@@ -167,8 +167,24 @@ class PaginaClienteController extends Controller
                 ->limit(20)
                 ->get();
 
+            // 6. Negocios más recientes
+            $recientes = Negocio::where('negocios.activo', 1)
+                ->where('negocios.estatus', 'publicado')
+                ->where('negocios.estatus_verificacion', 'verificado')
+                ->visibilidadJerarquica($id_estado, $id_ciudad)
+                ->orderBy('negocios.created_at', 'DESC')
+                ->with([
+                    'categoriaPrincipal',
+                    'categorias',
+                    'sucursales' => function ($q) {
+                        $q->where('activo', 1)->with(['estado', 'ciudad']);
+                    }
+                ])
+                ->limit(11)
+                ->get();
+
             // UX Fix: Reordenar sucursales para el contexto y proteger privacidad
-            $negocios->transform(function (Negocio $negocio) use ($id_estado, $id_ciudad) {
+            $transformarNegocio = function (Negocio $negocio) use ($id_estado, $id_ciudad) {
                 if ($id_ciudad || $id_estado) {
                     $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($id_estado, $id_ciudad) {
                         if ($id_ciudad && $s->id_ciudad == $id_ciudad)
@@ -188,7 +204,10 @@ class PaginaClienteController extends Controller
                     }
                 }
                 return $negocio;
-            });
+            };
+
+            $negocios->transform($transformarNegocio);
+            $recientes->transform($transformarNegocio);
 
             return [
                 'banners' => $banners,
@@ -196,6 +215,7 @@ class PaginaClienteController extends Controller
                 'mensajes' => $mensajes,
                 'estados' => $estados,
                 'negocios' => $negocios,
+                'recientes' => $recientes,
             ];
         });
 
@@ -683,10 +703,13 @@ class PaginaClienteController extends Controller
         $lat = $request->lat;
         $lng = $request->lng;
 
-        $cacheKey = "negocio_perfil_{$slug}_e{$id_estado}_c{$id_ciudad}_l{$lat}_g{$lng}";
+        // La clave de caché es independiente de los parámetros de ubicación del usuario.
+        // Esto eficienta al máximo la velocidad, reduce las consultas redundantes y
+        // permite que las actualizaciones del negocio se limpien correctamente de caché.
+        $cacheKey = "negocio_perfil_{$slug}";
 
-        $negocio = Cache::remember($cacheKey, 3600, function () use ($request, $slug, $id_estado, $id_ciudad, $lat, $lng) {
-            $n = Negocio::where('slug', $slug)
+        $negocio = Cache::remember($cacheKey, 3600, function () use ($slug) {
+            return Negocio::where('slug', $slug)
                 ->where('activo', 1)
                 ->where('estatus', 'publicado')
                 ->with([
@@ -706,44 +729,43 @@ class PaginaClienteController extends Controller
                     'categoriaPrincipal'
                 ])
                 ->first();
-
-            if ($n) {
-                // Reordenar sucursales según contexto si aplica
-                if ($id_ciudad || ($lat && $lng) || $id_estado) {
-                    $n->setRelation('sucursales', $n->sucursales->sortBy(function ($s) use ($id_ciudad, $id_estado, $lat, $lng) {
-                        $score = 100;
-                        if ($id_ciudad && $s->id_ciudad == $id_ciudad) {
-                            $score = 0;
-                        } elseif ($id_estado && $s->id_estado == $id_estado) {
-                            $score = 50;
-                        }
-
-                        if ($lat && $lng && $s->lat && $s->lng) {
-                            $dist = pow($s->lat - (float) $lat, 2) + pow($s->lng - (float) $lng, 2);
-                            $score += $dist;
-                        }
-                        return $score;
-                    })->values());
-                }
-
-                foreach ($n->sucursales as $sucursal) {
-                    if ($sucursal->visibilidad_direccion !== 'completa') {
-                        $sucursal->direccion_texto = null;
-                        $sucursal->codigo_postal = null;
-                        $sucursal->lat = null;
-                        $sucursal->lng = null;
-                    }
-                }
-                // Renombrar items a productos para el front-end
-                $n->setRelation('productos', $n->items);
-                $n->unsetRelation('items');
-            }
-            return $n;
         });
 
         if (!$negocio) {
             return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
+
+        // Reordenar sucursales según contexto de forma dinámica si aplica (fuera del caché)
+        if ($id_ciudad || ($lat && $lng) || $id_estado) {
+            $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($id_ciudad, $id_estado, $lat, $lng) {
+                $score = 100;
+                if ($id_ciudad && $s->id_ciudad == $id_ciudad) {
+                    $score = 0;
+                } elseif ($id_estado && $s->id_estado == $id_estado) {
+                    $score = 50;
+                }
+
+                if ($lat && $lng && $s->lat && $s->lng) {
+                    $dist = pow($s->lat - (float) $lat, 2) + pow($s->lng - (float) $lng, 2);
+                    $score += $dist;
+                }
+                return $score;
+            })->values());
+        }
+
+        // Aplicar políticas de visibilidad de dirección por privacidad (fuera del caché)
+        foreach ($negocio->sucursales as $sucursal) {
+            if ($sucursal->visibilidad_direccion !== 'completa') {
+                $sucursal->direccion_texto = null;
+                $sucursal->codigo_postal = null;
+                $sucursal->lat = null;
+                $sucursal->lng = null;
+            }
+        }
+
+        // Adaptar relación items -> productos para compatibilidad con el frontend (fuera del caché)
+        $negocio->setRelation('productos', $negocio->items);
+        $negocio->unsetRelation('items');
 
         // Incrementar vistas (Fuera del caché)
         // Usamos query builder para no ensuciar el objeto cacheado ni disparar eventos innecesarios
