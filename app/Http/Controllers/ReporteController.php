@@ -52,7 +52,7 @@ class ReporteController extends Controller
         foreach ($reportes as $reporte) {
             if ($reporte->objetivo_tipo == 'usuario') {
                 $reporte->objetivo = \App\Models\Usuario::find($reporte->id_objetivo);
-            } else if ($reporte->objetivo_tipo == 'negocio') {
+            } else if ($reporte->objetivo_tipo == 'proyecto') {
                 $reporte->objetivo = \App\Models\Negocio::find($reporte->id_objetivo);
             } else if ($reporte->objetivo_tipo == 'item') {
                 $reporte->objetivo = \App\Models\Item::find($reporte->id_objetivo);
@@ -64,7 +64,7 @@ class ReporteController extends Controller
                 $reporte->objetivo = \App\Models\Sucursal::find($reporte->id_objetivo);
             }
         }
-        
+
         return response()->json(['data' => $reportes], 200);
     }
 

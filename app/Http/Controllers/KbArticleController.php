@@ -37,7 +37,7 @@ class KbArticleController extends Controller
         try {
             $data = $request->validate([
                 'titulo' => 'required|string|max:190',
-                'categoria' => 'required|in:planes,registro,legal,contacto,faq,negocio',
+                'categoria' => 'required|in:planes,registro,legal,contacto,faq,proyecto',
                 'contenido' => 'required|string',
                 'link_fuente' => 'nullable|url|max:255',
                 'keywords' => 'nullable|array',
@@ -68,7 +68,7 @@ class KbArticleController extends Controller
             $data = $request->validate([
                 'id' => 'required|exists:kb_articles,id',
                 'titulo' => 'string|max:190',
-                'categoria' => 'in:planes,registro,legal,contacto,faq,negocio',
+                'categoria' => 'in:planes,registro,legal,contacto,faq,proyecto',
                 'contenido' => 'string',
                 'link_fuente' => 'nullable|url|max:255',
                 'keywords' => 'nullable|array',
@@ -77,7 +77,7 @@ class KbArticleController extends Controller
             ]);
 
             $articulo = KbArticle::find($data['id']);
-            
+
             if (isset($data['titulo']) && $data['titulo'] !== $articulo->titulo) {
                 $slug = Str::slug($data['titulo']);
                 $originalSlug = $slug;
