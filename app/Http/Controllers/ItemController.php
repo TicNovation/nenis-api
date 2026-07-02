@@ -22,14 +22,14 @@ class ItemController extends Controller
         if (!$id_usuario) {
             return response()->json(['message' => 'ID de usuario no identificado'], 400);
         }
-        
+
         // Verificamos que el negocio pertenezca al usuario
         $negocio = Negocio::where('id', $id_negocio)
             ->where('id_usuario', $id_usuario)
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $items = Item::where('id_negocio', $id_negocio)
@@ -61,7 +61,7 @@ class ItemController extends Controller
         }
 
         $usuario = $this->obtenerUsuario($request, $request->id_usuario);
-        
+
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
@@ -72,7 +72,7 @@ class ItemController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $item = new Item();
@@ -134,7 +134,7 @@ class ItemController extends Controller
         $item->tipo_item = $request->tipo_item;
         $item->precio = $request->precio;
         $item->url_externa = $request->url_externa;
-        
+
         if ($request->has('activo')) {
             $item->activo = $request->activo;
         }

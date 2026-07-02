@@ -42,7 +42,8 @@ class BackupDatabaseToS3 extends Command
         }
 
         $tmpDir = storage_path('app/tmp');
-        if (!is_dir($tmpDir)) mkdir($tmpDir, 0775, true);
+        if (!is_dir($tmpDir))
+            mkdir($tmpDir, 0775, true);
 
         $localFile = "{$tmpDir}/db_{$timestamp}_utc.sql.gz";
 
@@ -86,14 +87,16 @@ class BackupDatabaseToS3 extends Command
 
     private function applyRetention(string $disk, string $basePath, int $days): void
     {
-        if ($days <= 0) return;
+        if ($days <= 0)
+            return;
 
         $cutoff = now('UTC')->subDays($days);
         $files = Storage::disk($disk)->allFiles($basePath);
 
         $deleted = 0;
         foreach ($files as $file) {
-            if (!preg_match('/db_(\d{8}_\d{6})_utc\.sql\.gz$/', $file, $m)) continue;
+            if (!preg_match('/db_(\d{8}_\d{6})_utc\.sql\.gz$/', $file, $m))
+                continue;
 
             $dt = Carbon::createFromFormat('Ymd_His', $m[1], 'UTC');
             if ($dt->lt($cutoff)) {
@@ -102,6 +105,7 @@ class BackupDatabaseToS3 extends Command
             }
         }
 
-        if ($deleted > 0) $this->info("Retención: eliminados {$deleted} backups.");
+        if ($deleted > 0)
+            $this->info("Retención: eliminados {$deleted} backups.");
     }
 }

@@ -14,7 +14,7 @@ class ReporteController extends Controller
     public function crear(Request $request)
     {
         $validate = Validator::make($request->all(), [
-            'objetivo_tipo' => 'required|in:usuario,negocio,item,sucursal,oferta,banner',
+            'objetivo_tipo' => 'required|in:usuario,proyecto,item,sucursal,oferta,banner',
             'id_objetivo' => 'required|integer',
             'motivo' => 'required|string|max:190',
             'descripcion' => 'required|string',

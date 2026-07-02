@@ -18,7 +18,8 @@ use App\Models\SolicitudSoporte;
 class StripeController extends Controller
 {
 
-    public function crearSesionPago(Request $request){
+    public function crearSesionPago(Request $request)
+    {
 
         $validator = Validator::make($request->all(), [
             'id_plan' => 'required|exists:planes,id',
@@ -46,7 +47,7 @@ class StripeController extends Controller
         if (!$stripePriceId) {
             return response()->json(['message' => 'Este plan no tiene un ID de precio de Stripe configurado'], 400);
         }
-        
+
         try {
             // 2. Configurar Stripe con tu Secret Key
             Stripe::setApiKey(config('services.stripe.secret'));
@@ -54,10 +55,12 @@ class StripeController extends Controller
             // 3. Crear la sesión de Checkout
             $session = Session::create([
                 'payment_method_types' => ['card'],
-                'line_items' => [[
-                    'price' => $stripePriceId,
-                    'quantity' => 1, // La cantidad la define el ID de precio/meses del objeto
-                ]],
+                'line_items' => [
+                    [
+                        'price' => $stripePriceId,
+                        'quantity' => 1, // La cantidad la define el ID de precio/meses del objeto
+                    ]
+                ],
                 'allow_promotion_codes' => true,
                 'mode' => 'payment',
                 'success_url' => config('services.stripe.admin_panel_url') . '/success-payment?session_id={CHECKOUT_SESSION_ID}',
@@ -94,7 +97,9 @@ class StripeController extends Controller
 
         try {
             $event = \Stripe\Webhook::constructEvent(
-                $payload, $sig_header, $endpoint_secret
+                $payload,
+                $sig_header,
+                $endpoint_secret
             );
             Log::info("Stripe Webhook Recibido: " . $event->type);
         } catch (\UnexpectedValueException $e) {
@@ -134,40 +139,40 @@ class StripeController extends Controller
         Log::info("---------- STRIPE DEBUG START ({$titulo}) ----------");
         Log::info("Clase del objeto: " . get_class($object));
         Log::info("ID del objeto: " . ($object->id ?? 'N/A'));
-        
+
         // 🏗️ EXTRACCIÓN LIMPIA: El SDK de Stripe tiene objetos con propiedades internas (_values).
         // Usamos toArray() si está disponible o una conversión limpia para evitar basura del SDK.
         $metadata = [];
         if (isset($object->metadata)) {
-            $metadata = method_exists($object->metadata, 'toArray') 
-                ? $object->metadata->toArray() 
+            $metadata = method_exists($object->metadata, 'toArray')
+                ? $object->metadata->toArray()
                 : json_decode(json_encode($object->metadata), true);
         }
 
         Log::info("Contenido Metadata Limpio: " . json_encode($metadata));
-        
+
         // 🏗️ EXTRACCIÓN ROBUSTA: Intentamos varios caminos para el id_usuario
         $usuario_id = $metadata['usuario_id'] ?? null;
-        
+
         Log::info("ID Usuario detectado: " . ($usuario_id ?? 'NULL'));
         Log::info("---------- STRIPE DEBUG END ----------");
 
         // IMPORTANTE: Si id_usuario sigue siendo NULL, la BD va a tronar (SQL 23000).
         // Usaremos el ID 1 (o el que consideres tu Admin/Sistema) como fallback SEGURO.
-        $final_id_usuario = $usuario_id ? (int)$usuario_id : 1; 
+        $final_id_usuario = $usuario_id ? (int) $usuario_id : 1;
 
         SolicitudSoporte::create([
             'id_usuario' => $final_id_usuario,
             'asunto' => "Sistema: " . $titulo,
             'mensaje' => "⚠️ Evento de Stripe detectado: " . $titulo . "\n\n" .
-                         "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
-                         "Correo: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
-                         "Metadata original: " . json_encode($metadata) . "\n" .
-                         "Detalle Error: " . ($object->last_payment_error->message ?? 'Error desconocido o expiración manual de sesión'),
-            'estatus' => 'solicitado', // ✅ CORRECCIÓN: 'abierto' no es un valor válido en el ENUM de Nenis
+                "ID Stripe: " . ($object->id ?? 'N/A') . "\n" .
+                "Correo: " . ($object->customer_email ?? $object->receipt_email ?? 'No disponible') . "\n" .
+                "Metadata original: " . json_encode($metadata) . "\n" .
+                "Detalle Error: " . ($object->last_payment_error->message ?? 'Error desconocido o expiración manual de sesión'),
+            'estatus' => 'solicitado', // ✅ CORRECCIÓN: 'abierto' no es un valor válido en el ENUM de Proyecto Digital
             'activo' => true
         ]);
-        
+
         Log::info("Ticket de soporte creado exitosamente para el usuario ID: " . $final_id_usuario);
     }
 
@@ -176,9 +181,9 @@ class StripeController extends Controller
         $metadata = $session->metadata;
         Log::info("Procesando pago exitoso. Metadata: " . json_encode($metadata));
 
-        $usuario_id = isset($metadata->usuario_id) ? (int)$metadata->usuario_id : null;
-        $plan_id = isset($metadata->plan_id) ? (int)$metadata->plan_id : null;
-        $meses = isset($metadata->meses) ? (int)$metadata->meses : 0;
+        $usuario_id = isset($metadata->usuario_id) ? (int) $metadata->usuario_id : null;
+        $plan_id = isset($metadata->plan_id) ? (int) $metadata->plan_id : null;
+        $meses = isset($metadata->meses) ? (int) $metadata->meses : 0;
 
         Log::info("Datos extraídos (casteados) - Usuario: $usuario_id, Plan: $plan_id, Meses: $meses");
 
@@ -187,7 +192,7 @@ class StripeController extends Controller
 
         if ($usuario && $plan) {
             Log::info("Usuario ({$usuario->nombre}) y Plan ({$plan->nombre}) encontrados. Actualizando...");
-            
+
             // 1. Verificar si tiene una membresía activa para sumar días si es el mismo plan
             $membresiaActual = Membresia::where('id_usuario', $usuario->id)
                 ->where('estatus', 'activo')
@@ -224,7 +229,7 @@ class StripeController extends Controller
             Log::info("Nueva membresía creada ID: " . $nuevaMembresia->id . " vence en: " . $fin);
 
             // 3. Actualizar usuario
-            $usuario->id_plan_activo = $plan->id; 
+            $usuario->id_plan_activo = $plan->id;
             $usuario->max_alcance_visibilidad = $plan->max_alcance_visibilidad;
             $usuario->prioridad_cache = $plan->prioridad_busqueda;
             $usuario->destacado_cache = $plan->destacado;

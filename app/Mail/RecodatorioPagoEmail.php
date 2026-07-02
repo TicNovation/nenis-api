@@ -35,7 +35,7 @@ class RecodatorioPagoEmail extends Mailable
     public function envelope()
     {
         return new Envelope(
-            subject: "💎 Tu suscripción a Nenis está por vencer ⌛",
+            subject: "💎 Tu suscripción a Proyecto Digital está por vencer ⌛",
         );
     }
 
@@ -51,7 +51,7 @@ class RecodatorioPagoEmail extends Mailable
             with: [
                 'nombre' => $this->data['nombre'],
                 'fecha_vencimiento' => $this->data['fecha_vencimiento'],
-            ]  
+            ]
         );
     }
 

@@ -96,7 +96,7 @@ return [
             'public.pricing' => [
                 'id' => 'public.pricing',
                 'label' => 'Planes y precios',
-                'message' => '¿Qué planes tiene Nenis y cuánto cuestan? Dame un resumen claro.',
+                'message' => '¿Qué planes tiene Proyecto Digital y cuánto cuestan? Dame un resumen claro.',
                 'category' => 'planes',
                 'children' => [
                     'public.plan_basic',
@@ -109,7 +109,7 @@ return [
             'public.plan_basic' => [
                 'id' => 'public.plan_basic',
                 'label' => '¿Es gratis?',
-                'message' => '¿Existe un plan gratis en Nenis y qué incluye el plan Basic?',
+                'message' => '¿Existe un plan gratis en Proyecto Digital y qué incluye el plan Basic?',
                 'category' => 'planes',
                 'children' => ['public.register'],
             ],
@@ -141,7 +141,7 @@ return [
             'public.register' => [
                 'id' => 'public.register',
                 'label' => '¿Cómo me registro?',
-                'message' => '¿Cómo me registro en Nenis? Dame los pasos concretos.',
+                'message' => '¿Cómo me registro en Proyecto Digital? Dame los pasos concretos.',
                 'category' => 'registro',
                 'children' => ['public.requirements', 'public.verify_email'],
             ],
@@ -149,7 +149,7 @@ return [
             'public.requirements' => [
                 'id' => 'public.requirements',
                 'label' => '¿Qué necesito para registrarme?',
-                'message' => '¿Qué información necesito tener lista para registrarme en Nenis?',
+                'message' => '¿Qué información necesito tener lista para registrarme en Proyecto Digital?',
                 'category' => 'registro',
                 'children' => ['public.register'],
             ],
@@ -178,8 +178,8 @@ return [
 
             'public.how_it_works' => [
                 'id' => 'public.how_it_works',
-                'label' => '¿Cómo funciona Nenis?',
-                'message' => 'Explícame qué es Nenis y cómo ayuda a emprendedores. Resumen breve.',
+                'label' => '¿Cómo funciona Proyecto Digital?',
+                'message' => 'Explícame qué es Proyecto Digital y cómo ayuda a emprendedores. Resumen breve.',
                 'category' => 'proyecto',
                 'children' => ['public.pricing', 'public.register'],
             ],
@@ -187,14 +187,14 @@ return [
             'public.who_we_are' => [
                 'id' => 'public.who_we_are',
                 'label' => '¿Quiénes somos?',
-                'message' => '¿Quién está detrás de Nenis y cuál es la misión del proyecto?',
+                'message' => '¿Quién está detrás de Proyecto Digital y cuál es la misión del proyecto?',
                 'category' => 'proyecto',
             ],
 
             'public.terms' => [
                 'id' => 'public.terms',
                 'label' => 'Términos',
-                'message' => '¿Dónde puedo leer los términos y condiciones de Nenis? Dame un resumen y el link oficial.',
+                'message' => '¿Dónde puedo leer los términos y condiciones de Proyecto Digital? Dame un resumen y el link oficial.',
                 'category' => 'legal',
                 'children' => ['public.privacy', 'public.content_policy'],
             ],
@@ -202,21 +202,21 @@ return [
             'public.privacy' => [
                 'id' => 'public.privacy',
                 'label' => 'Privacidad',
-                'message' => '¿Cuál es el aviso de privacidad de Nenis? Resumen y link oficial.',
+                'message' => '¿Cuál es el aviso de privacidad de Proyecto Digital? Resumen y link oficial.',
                 'category' => 'legal',
             ],
 
             'public.content_policy' => [
                 'id' => 'public.content_policy',
                 'label' => 'Contenido permitido',
-                'message' => '¿Qué tipo de negocios o contenido no se permite en Nenis? Resumen y link.',
+                'message' => '¿Qué tipo de negocios o contenido no se permite en Proyecto Digital? Resumen y link.',
                 'category' => 'legal',
             ],
 
             'public.refunds' => [
                 'id' => 'public.refunds',
                 'label' => 'Pagos y devoluciones',
-                'message' => '¿Cómo funcionan pagos, cancelaciones y devoluciones en Nenis? Resumen y link oficial.',
+                'message' => '¿Cómo funcionan pagos, cancelaciones y devoluciones en Proyecto Digital? Resumen y link oficial.',
                 'category' => 'legal',
             ],
 
@@ -314,15 +314,15 @@ return [
             'admin.how_search_works' => [
                 'id' => 'admin.how_search_works',
                 'label' => '¿Cómo funciona la búsqueda?',
-                'message' => 'Explícame cómo funciona la búsqueda y la prioridad por plan dentro de Nenis.',
+                'message' => 'Explícame cómo funciona la búsqueda y la prioridad por plan dentro de Proyecto Digital.',
                 'category' => 'faq',
                 'min_plan' => 'basic',
             ],
 
             'admin.about_creators' => [
                 'id' => 'admin.about_creators',
-                'label' => '¿Quién creó Nenis?',
-                'message' => '¿Quién es el dueño de Nenis y quién desarrolló la plataforma?',
+                'label' => '¿Quién creó Proyecto Digital?',
+                'message' => '¿Quién es el dueño de Proyecto Digital y quién desarrolló la plataforma?',
                 'category' => 'soporte',
                 'min_plan' => 'basic',
             ],

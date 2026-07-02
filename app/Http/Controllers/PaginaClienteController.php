@@ -44,9 +44,25 @@ class PaginaClienteController extends Controller
 
         // 3. Validación de contenido (Escudo anti-spam)
         $spamKeywords = [
-            'crypto', 'bitcoin', 'ethereum', 'casino', 'betting', 'poker', 'porno', 
-            'sex', 'girls', 'dating', 'viagra', 'cialis', 'earn money', 'work from home',
-            'seo services', 'marketing agency', 'optimization', 'ranking', 'backlinks',
+            'crypto',
+            'bitcoin',
+            'ethereum',
+            'casino',
+            'betting',
+            'poker',
+            'porno',
+            'sex',
+            'girls',
+            'dating',
+            'viagra',
+            'cialis',
+            'earn money',
+            'work from home',
+            'seo services',
+            'marketing agency',
+            'optimization',
+            'ranking',
+            'backlinks',
         ];
 
         $content = strtolower($request->mensaje);
@@ -65,9 +81,13 @@ class PaginaClienteController extends Controller
         try {
             // El correo se envía al administrador (puedes configurar esto en el .env)
             $adminEmail = 'contacto@nuevaeradigital.mx';//config('mail.from.address'); // O un correo específico de ventas
-            
+
             Mail::to($adminEmail)->send(new SolicitudPublicidadEmail($request->only([
-                'nombre', 'correo', 'telefono', 'nombre_negocio', 'mensaje'
+                'nombre',
+                'correo',
+                'telefono',
+                'nombre_negocio',
+                'mensaje'
             ])));
 
             return response()->json([
@@ -95,8 +115,8 @@ class PaginaClienteController extends Controller
 
         // Intentamos obtener los datos de caché (1 hora)
         $cacheKey = "home_data_e{$id_estado}_c{$id_ciudad}";
-        
-        $data = Cache::remember($cacheKey, 3600, function() use ($id_estado, $id_ciudad) {
+
+        $data = Cache::remember($cacheKey, 3600, function () use ($id_estado, $id_ciudad) {
             // 1. Banners con jerarquía
             $banners = Banner::alcance($id_estado, $id_ciudad)->get();
 
@@ -131,15 +151,19 @@ class PaginaClienteController extends Controller
                     ) THEN 0 ELSE 1 END) ASC,
                     prioridad_cache DESC
                 ", [$id_ciudad])
-                ->inRandomOrder();
+                    ->inRandomOrder();
             } else {
                 $queryNegocios->orderBy('prioridad_cache', 'DESC')
-                             ->inRandomOrder();
+                    ->inRandomOrder();
             }
 
-            $negocios = $queryNegocios->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+            $negocios = $queryNegocios->with([
+                'categoriaPrincipal',
+                'categorias',
+                'sucursales' => function ($q) {
                     $q->where('activo', 1)->with(['estado', 'ciudad']);
-                }])
+                }
+            ])
                 ->limit(20)
                 ->get();
 
@@ -147,8 +171,10 @@ class PaginaClienteController extends Controller
             $negocios->transform(function (Negocio $negocio) use ($id_estado, $id_ciudad) {
                 if ($id_ciudad || $id_estado) {
                     $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($id_estado, $id_ciudad) {
-                        if ($id_ciudad && $s->id_ciudad == $id_ciudad) return 0;
-                        if ($id_estado && $s->id_estado == $id_estado) return 10;
+                        if ($id_ciudad && $s->id_ciudad == $id_ciudad)
+                            return 0;
+                        if ($id_estado && $s->id_estado == $id_estado)
+                            return 10;
                         return 100;
                     })->values());
                 }
@@ -178,13 +204,13 @@ class PaginaClienteController extends Controller
             $hoy = Carbon::now()->toDateString();
             $values = [];
             $bindings = [];
-            
+
             foreach ($data['banners'] as $banner) {
                 $values[] = "(?, ?, 1, 0)";
                 $bindings[] = $banner->id;
                 $bindings[] = $hoy;
             }
-            
+
             $valuesSql = implode(', ', $values);
             DB::statement("
                 INSERT INTO banners_stats_diarias (id_banner, fecha, impresiones, clicks) 
@@ -227,14 +253,14 @@ class PaginaClienteController extends Controller
 
         // Buscar ciudad dentro del estado de forma inteligente e insensible a acentos/caracteres
         $ciudad = Ciudad::where('id_estado', $estado->id)
-            ->where(function($q) use ($slug_ciudad, $input_ciudad) {
+            ->where(function ($q) use ($slug_ciudad, $input_ciudad) {
                 // 1. Coincidencia de slug (Normalizado sin acentos/especiales)
                 $q->where('slug', 'LIKE', "%{$slug_ciudad}%")
-                  // 2. Por si el input de Google es más largo: "leon-de-los-aldama" contiene "leon"
-                  ->orWhereRaw('? LIKE CONCAT("%", slug, "%")', [$slug_ciudad])
-                  // 3. Fallback por nombre por si acaso
-                  ->orWhere('nombre', 'LIKE', "%{$input_ciudad}%")
-                  ->orWhereRaw('? LIKE CONCAT("%", nombre, "%")', [$input_ciudad]);
+                    // 2. Por si el input de Google es más largo: "leon-de-los-aldama" contiene "leon"
+                    ->orWhereRaw('? LIKE CONCAT("%", slug, "%")', [$slug_ciudad])
+                    // 3. Fallback por nombre por si acaso
+                    ->orWhere('nombre', 'LIKE', "%{$input_ciudad}%")
+                    ->orWhereRaw('? LIKE CONCAT("%", nombre, "%")', [$input_ciudad]);
             })
             // Ordenar por la coincidencia más cercana en longitud para evitar falsos positivos
             ->orderByRaw('ABS(LENGTH(slug) - LENGTH(?)) ASC', [$slug_ciudad])
@@ -265,8 +291,8 @@ class PaginaClienteController extends Controller
         }
 
         $id_estado = $request->id_estado;
-        
-        $ciudades = Cache::remember("ciudades_estado_{$id_estado}", 86400, function() use ($id_estado) {
+
+        $ciudades = Cache::remember("ciudades_estado_{$id_estado}", 86400, function () use ($id_estado) {
             return Ciudad::where('id_estado', $id_estado)->orderBy('nombre', 'ASC')->get();
         });
 
@@ -310,7 +336,7 @@ class PaginaClienteController extends Controller
             $query->cercanosA($request->lat, $request->lng, $request->radio ?? 10, $request->id_estado);
         } else {
             $query->visibilidadJerarquica($request->id_estado, $request->id_ciudad);
-            
+
             // Prioridad Inteligente: 
             // 1. Negocios que TIENEN sucursal en la ciudad buscada (Prioridad Local Real)
             // 2. Luego el orden por alcance configurado como tie-breaker
@@ -376,28 +402,32 @@ class PaginaClienteController extends Controller
                 }
 
                 $scoreExpression = implode(' + ', $scoreSQL);
-                
+
                 if ($request->boolean('solo_con_ubicacion')) {
                     $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
                         ->addBinding($bindings, 'select');
                 } else {
                     $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
                 }
-                
+
                 $query->orderBy('relevancia', 'DESC');
             }
         }
 
         // 3. Orden Final (Prioridad de Plan y Aleatoriedad para exploración)
         $query->orderBy('prioridad_cache', 'DESC');
-        
+
         if (!$request->filled('buscar')) {
             $query->inRandomOrder();
         }
 
-        $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+        $negocios = $query->with([
+            'categoriaPrincipal',
+            'categorias',
+            'sucursales' => function ($q) {
                 $q->where('activo', 1)->with(['estado', 'ciudad']);
-            }])
+            }
+        ])
             ->paginate($request->input('por_pagina', 100));
 
         $negocios->getCollection()->transform(function (Negocio $negocio) use ($request) {
@@ -406,7 +436,7 @@ class PaginaClienteController extends Controller
             // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
             if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
                 $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
-                    $score = 100; 
+                    $score = 100;
                     if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) {
                         $score = 0;
                     } elseif ($request->filled('id_estado') && $s->id_estado == $request->id_estado) {
@@ -414,7 +444,7 @@ class PaginaClienteController extends Controller
                     }
 
                     if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
-                        $dist = pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2);
+                        $dist = pow($s->lat - (float) $request->lat, 2) + pow($s->lng - (float) $request->lng, 2);
                         $score += $dist;
                     }
                     return $score;
@@ -471,7 +501,7 @@ class PaginaClienteController extends Controller
 
         $subcategorias_input = $request->input('subcategorias', []);
         $subcategorias_str = is_array($subcategorias_input) ? implode(',', $subcategorias_input) : $subcategorias_input;
-        
+
         $lat = $request->lat ?? 0;
         $lng = $request->lng ?? 0;
         $solo_gps = $request->boolean('solo_con_ubicacion') ? 1 : 0;
@@ -479,7 +509,7 @@ class PaginaClienteController extends Controller
         // Caché con prefijo v2 para evitar colisión con la lógica antigua
         $cacheKey = "search_cat_v2_{$slug_cat}_e{$id_estado}_c{$id_ciudad}_b{$buscar}_pp{$por_pagina}_p{$page}_s{$subcategorias_str}_gps{$solo_gps}_l{$lat}_g{$lng}_r{$radio}";
 
-        $data = Cache::remember($cacheKey, 1800, function() use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina, $subcategorias_input, $radio) {
+        $data = Cache::remember($cacheKey, 1800, function () use ($request, $slug_cat, $id_estado, $id_ciudad, $por_pagina, $subcategorias_input, $radio) {
             $categoria = Categoria::where('slug', $slug_cat)->where('activo', 1)->first();
 
             if (!$categoria) {
@@ -510,7 +540,7 @@ class PaginaClienteController extends Controller
                 $query->cercanosA($request->lat, $request->lng, $radio, $id_estado);
             } else {
                 $query->visibilidadJerarquica($id_estado, $id_ciudad);
-                
+
                 if ($id_ciudad) {
                     $query->orderByRaw("
                         (CASE WHEN EXISTS (
@@ -572,14 +602,14 @@ class PaginaClienteController extends Controller
                     }
 
                     $scoreExpression = implode(' + ', $scoreSQL);
-                    
+
                     if ($request->boolean('solo_con_ubicacion')) {
                         $query->addSelect(DB::raw("({$scoreExpression}) as relevancia"))
                             ->addBinding($bindings, 'select');
                     } else {
                         $query->selectRaw("negocios.*, ({$scoreExpression}) as relevancia", $bindings);
                     }
-                    
+
                     $query->orderBy('relevancia', 'DESC');
                 }
             }
@@ -587,15 +617,19 @@ class PaginaClienteController extends Controller
             // 3. Filtrar por categorías
             $query->where(function ($q) use ($ids_categorias) {
                 $q->whereIn('id_categoria_principal', $ids_categorias)
-                ->orWhereHas('categorias', function ($sq) use ($ids_categorias) {
-                    $sq->whereIn('id_categoria', $ids_categorias);
-                });
+                    ->orWhereHas('categorias', function ($sq) use ($ids_categorias) {
+                        $sq->whereIn('id_categoria', $ids_categorias);
+                    });
             });
 
             // 4. Orden Final (Planes) y Paginación
-            $negocios = $query->with(['categoriaPrincipal', 'categorias', 'sucursales' => function($q) {
+            $negocios = $query->with([
+                'categoriaPrincipal',
+                'categorias',
+                'sucursales' => function ($q) {
                     $q->where('activo', 1)->with(['estado', 'ciudad']);
-                }])
+                }
+            ])
                 ->orderBy('prioridad_cache', 'DESC')
                 ->paginate($por_pagina);
 
@@ -605,11 +639,13 @@ class PaginaClienteController extends Controller
                 // Reordenar sucursales para mostrar la más relevante al contexto primero (UX Fix)
                 if ($request->filled('id_ciudad') || $request->filled(['lat', 'lng']) || $request->filled('id_estado')) {
                     $negocio->setRelation('sucursales', $negocio->sucursales->sortBy(function ($s) use ($request) {
-                        if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad) return 0;
+                        if ($request->filled('id_ciudad') && $s->id_ciudad == $request->id_ciudad)
+                            return 0;
                         if ($request->filled(['lat', 'lng']) && $s->lat && $s->lng) {
-                            return pow($s->lat - (float)$request->lat, 2) + pow($s->lng - (float)$request->lng, 2) + 1;
+                            return pow($s->lat - (float) $request->lat, 2) + pow($s->lng - (float) $request->lng, 2) + 1;
                         }
-                        if ($request->filled('id_estado') && $s->id_estado == $request->id_estado) return 10;
+                        if ($request->filled('id_estado') && $s->id_estado == $request->id_estado)
+                            return 10;
                         return 100;
                     })->values());
                 }
@@ -649,20 +685,22 @@ class PaginaClienteController extends Controller
 
         $cacheKey = "negocio_perfil_{$slug}_e{$id_estado}_c{$id_ciudad}_l{$lat}_g{$lng}";
 
-        $negocio = Cache::remember($cacheKey, 3600, function() use ($request, $slug, $id_estado, $id_ciudad, $lat, $lng) {
+        $negocio = Cache::remember($cacheKey, 3600, function () use ($request, $slug, $id_estado, $id_ciudad, $lat, $lng) {
             $n = Negocio::where('slug', $slug)
                 ->where('activo', 1)
                 ->where('estatus', 'publicado')
                 ->with([
-                    'imagenes' => function($q) {
+                    'imagenes' => function ($q) {
                         $q->where('activo', 1);
                     },
-                    'items' => function($q) {
-                        $q->where('activo', 1)->with(['imagenes' => function($sq) {
-                            $sq->where('activo', 1);
-                        }]);
+                    'items' => function ($q) {
+                        $q->where('activo', 1)->with([
+                            'imagenes' => function ($sq) {
+                                $sq->where('activo', 1);
+                            }
+                        ]);
                     },
-                    'sucursales' => function($q) {
+                    'sucursales' => function ($q) {
                         $q->where('activo', 1)->with(['horarios', 'estado', 'ciudad']);
                     },
                     'categoriaPrincipal'
@@ -681,7 +719,7 @@ class PaginaClienteController extends Controller
                         }
 
                         if ($lat && $lng && $s->lat && $s->lng) {
-                            $dist = pow($s->lat - (float)$lat, 2) + pow($s->lng - (float)$lng, 2);
+                            $dist = pow($s->lat - (float) $lat, 2) + pow($s->lng - (float) $lng, 2);
                             $score += $dist;
                         }
                         return $score;
@@ -704,7 +742,7 @@ class PaginaClienteController extends Controller
         });
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         // Incrementar vistas (Fuera del caché)
@@ -723,9 +761,9 @@ class PaginaClienteController extends Controller
 
         $query = \App\Models\OfertaEmpleo::where('activo', 1)
             ->where('estatus', 'activo')
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereNull('expira_en')
-                  ->orWhere('expira_en', '>',Carbon::now());
+                    ->orWhere('expira_en', '>', Carbon::now());
             })
             ->visibilidadJerarquica($id_estado, $id_ciudad)
             ->with(['negocio', 'estado', 'ciudad'])

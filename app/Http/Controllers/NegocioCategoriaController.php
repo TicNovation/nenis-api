@@ -33,7 +33,7 @@ class NegocioCategoriaController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         if ($negocio->id_categoria_principal == $request->input('id_categoria')) {
@@ -82,7 +82,7 @@ class NegocioCategoriaController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         $borrados = NegocioCategoria::where('id_negocio', $request->input('id_negocio'))

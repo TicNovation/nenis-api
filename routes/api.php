@@ -125,7 +125,7 @@ Route::group(['middleware' => 'jwt.admin'], function () {
     Route::post('usuario/eliminar', [UsuarioController::class, 'eliminar']);
     Route::get('usuario/listar', [UsuarioController::class, 'listar']);
     Route::get('usuario/encontrar/{id}', [UsuarioController::class, 'encontrar']);
-    
+
     // Plan Precios
     Route::get('plan-precio/listar/{id_plan}', [PlanPrecioController::class, 'listarPorPlan']);
     Route::post('plan-precio/crear', [PlanPrecioController::class, 'crear']);
@@ -184,7 +184,7 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 
     // Gestión de Negocios
     Route::get('negocio/listar/{usuario_id?}', [NegocioController::class, 'listar']);
-    Route::post('negocio/crear', [NegocioController::class, 'crear'])->middleware('check.limits:negocios');
+    Route::post('negocio/crear', [NegocioController::class, 'crear'])->middleware('check.limits:proyectos');
     Route::post('negocio/actualizar', [NegocioController::class, 'actualizar']);
     Route::post('negocio/cambiar-estatus', [NegocioController::class, 'cambiarEstatus']);
     Route::get('negocio/encontrar/{id}/{usuario_id?}', [NegocioController::class, 'encontrar']);
@@ -232,5 +232,5 @@ Route::group(['middleware' => 'jwt.auth'], function () {
 //Rutas usuarios
 
 Route::group(['middleware' => 'jwt.usuario'], function () {
-    
+
 });

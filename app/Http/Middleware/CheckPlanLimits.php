@@ -13,7 +13,7 @@ class CheckPlanLimits
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  string  $feature (negocios, items, empleos)
+     * @param  string  $feature (proyectos, items, empleos)
      * @return mixed
      */
     public function handle(Request $request, Closure $next, $feature)
@@ -37,10 +37,10 @@ class CheckPlanLimits
         }
 
         switch ($feature) {
-            case 'negocios':
+            case 'proyectos':
                 if ($user->total_negocios >= $plan->max_negocios) {
                     return response()->json([
-                        'message' => 'Has alcanzado el límite máximo de negocios de tu plan (' . $plan->max_negocios . '). Mejora tu plan para crear más.',
+                        'message' => 'Has alcanzado el límite máximo de proyectos de tu plan (' . $plan->max_negocios . '). Mejora tu plan para crear más.',
                         'limit_reached' => true,
                         'current' => $user->total_negocios,
                         'limit' => $plan->max_negocios
@@ -53,9 +53,9 @@ class CheckPlanLimits
             case 'empleos':
             case 'imagenes':
                 $id_negocio = $request->input('id_negocio');
-                
+
                 if (!$id_negocio) {
-                    return response()->json(['message' => 'ID de negocio es requerido para esta validación'], 400);
+                    return response()->json(['message' => 'ID de proyecto es requerido para esta validación'], 400);
                 }
 
                 $negocio = \App\Models\Negocio::where('id', $id_negocio)
@@ -63,7 +63,7 @@ class CheckPlanLimits
                     ->first();
 
                 if (!$negocio) {
-                    return response()->json(['message' => 'Negocio no encontrado o no pertenece a tu cuenta'], 404);
+                    return response()->json(['message' => 'Proyecto no encontrado o no pertenece a tu cuenta'], 404);
                 }
 
                 switch ($feature) {
@@ -77,7 +77,7 @@ class CheckPlanLimits
                             ], 403);
                         }
                         break;
-                    
+
                     case 'sucursales':
                         if ($negocio->total_sucursales >= $plan->max_sucursales_negocio) {
                             return response()->json([
@@ -92,7 +92,7 @@ class CheckPlanLimits
                     case 'empleos':
                         if ($negocio->total_ofertas_empleo >= $plan->max_ofertas_empleo_activas) {
                             return response()->json([
-                                'message' => 'Has alcanzado el límite máximo de ofertas de empleo (' . $plan->max_ofertas_empleo_activas . ') para este negocio. Mejora tu plan para agregar más.',
+                                'message' => 'Has alcanzado el límite máximo de ofertas de empleo (' . $plan->max_ofertas_empleo_activas . ') para este proyecto. Mejora tu plan para agregar más.',
                                 'limit_reached' => true,
                                 'current' => $negocio->total_ofertas_empleo,
                                 'limit' => $plan->max_ofertas_empleo_activas
@@ -103,7 +103,7 @@ class CheckPlanLimits
                     case 'imagenes':
                         if ($negocio->total_imagenes >= $plan->max_imagenes_negocio) {
                             return response()->json([
-                                'message' => 'Has alcanzado el límite máximo de imágenes (' . $plan->max_imagenes_negocio . ') permitidas para este negocio.',
+                                'message' => 'Has alcanzado el límite máximo de imágenes (' . $plan->max_imagenes_negocio . ') permitidas para este proyecto.',
                                 'limit_reached' => true,
                                 'current' => $negocio->total_imagenes,
                                 'limit' => $plan->max_imagenes_negocio

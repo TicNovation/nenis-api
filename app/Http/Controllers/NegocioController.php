@@ -20,11 +20,11 @@ class NegocioController extends Controller
         if (!$id_usuario) {
             return response()->json(['message' => 'Se requiere el ID de usuario para esta consulta'], 400);
         }
-        
+
         $negocios = Negocio::where('id_usuario', $id_usuario)
             ->with('categoriaPrincipal')
             ->get();
-            
+
         return response()->json(['data' => $negocios], 200);
     }
 
@@ -72,13 +72,13 @@ class NegocioController extends Controller
         $negocio->slogan = $request->slogan;
         $negocio->palabras_clave = $request->palabras_clave;
         $negocio->palabras_clave_normalizadas = $this->normalizarTexto($request->palabras_clave);
-        
+
         // Heredar campos del Usuario (Plan/Membresía)
         $negocio->destacado_cache = $usuario->destacado_cache;
         $negocio->destacado_titulo_cache = $usuario->destacado_titulo_cache;
         $negocio->alcance_visibilidad = 'ciudad';
         $negocio->prioridad_cache = $usuario->prioridad_cache;
-        
+
         $negocio->telefono = $request->telefono;
         $negocio->whatsapp = $request->whatsapp;
         $negocio->correo_contacto = $request->correo_contacto;
@@ -86,7 +86,7 @@ class NegocioController extends Controller
         $negocio->facebook = $request->facebook;
         $negocio->instagram = $request->instagram;
         $negocio->tiktok = $request->tiktok;
-        
+
         $negocio->estatus = 'publicado';  // Por defecto al crear, despues cambiar a **borrador**
         $negocio->estatus_verificacion = 'verificado'; // Por defecto al crear, despues cambiar a **pendiente**
         $negocio->activo = 1;
@@ -109,7 +109,7 @@ class NegocioController extends Controller
         // Incrementamos el contador del usuario
         $usuario->increment('total_negocios');
 
-        return response()->json(['message' => 'Negocio creado exitosamente', 'data' => $negocio], 201);
+        return response()->json(['message' => 'Proyecto creado exitosamente', 'data' => $negocio], 201);
     }
 
     /**
@@ -148,7 +148,7 @@ class NegocioController extends Controller
         $negocio = Negocio::find($request->id);
 
         if (!$negocio || $negocio->id_usuario != $id_operador) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         $negocio->id_categoria_principal = $request->id_categoria_principal;
@@ -157,7 +157,7 @@ class NegocioController extends Controller
         $negocio->slogan = $request->slogan;
         $negocio->palabras_clave = $request->palabras_clave;
         $negocio->palabras_clave_normalizadas = $this->normalizarTexto($request->palabras_clave);
-        
+
         $negocio->telefono = $request->telefono;
         $negocio->whatsapp = $request->whatsapp;
         $negocio->correo_contacto = $request->correo_contacto;
@@ -199,7 +199,7 @@ class NegocioController extends Controller
 
         if ($request->has('categorias_extra')) {
             $categoriasExtra = json_decode($request->categorias_extra, true);
-            
+
             if (is_array($categoriasExtra)) {
                 // 1. Limpiar duplicados y el ID de la categoría principal
                 $categoriasExtra = array_unique(array_filter($categoriasExtra));
@@ -208,9 +208,12 @@ class NegocioController extends Controller
                 // 2. Definir límites por plan (puedes ajustar estos números)
                 $planNombre = strtolower($negocio->usuario->plan_activo->nombre ?? 'basic');
                 $limite = 0;
-                if ($planNombre === 'elite' || $planNombre === 'premium plus') $limite = 9;
-                else if ($planNombre === 'pro') $limite = 6;
-                else $limite = 3; // Básico
+                if ($planNombre === 'elite' || $planNombre === 'premium plus')
+                    $limite = 9;
+                else if ($planNombre === 'pro')
+                    $limite = 6;
+                else
+                    $limite = 3; // Básico
 
                 // 3. Aplicar límite
                 $categoriasExtra = array_slice($categoriasExtra, 0, $limite);
@@ -223,7 +226,7 @@ class NegocioController extends Controller
         // Limpiar caché del perfil público
         Cache::forget("negocio_perfil_{$negocio->slug}");
 
-        return response()->json(['message' => 'Negocio actualizado exitosamente', 'data' => $negocio], 200);
+        return response()->json(['message' => 'Proyecto actualizado exitosamente', 'data' => $negocio], 200);
     }
 
     /**
@@ -247,7 +250,7 @@ class NegocioController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         $negocio->estatus = $request->estatus;
@@ -271,7 +274,7 @@ class NegocioController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         return response()->json(['data' => $negocio], 200);
@@ -297,7 +300,7 @@ class NegocioController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $this->eliminarArchivo($negocio->ruta_logo);
@@ -309,7 +312,7 @@ class NegocioController extends Controller
         $id_usuario_count = $negocio->id_usuario;
         \App\Models\Usuario::where('id', $id_usuario_count)->decrement('total_negocios');
 
-        return response()->json(['message' => 'Negocio eliminado exitosamente'], 200);
+        return response()->json(['message' => 'Proyecto eliminado exitosamente'], 200);
     }
 
     /**
@@ -320,7 +323,7 @@ class NegocioController extends Controller
         $negocios = Negocio::with(['usuario', 'categoriaPrincipal'])
             ->orderBy('created_at', 'desc')
             ->get();
-            
+
         return response()->json(['data' => $negocios], 200);
     }
 
@@ -342,11 +345,11 @@ class NegocioController extends Controller
         $negocio = Negocio::find($request->id);
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $negocio->estatus_verificacion = $request->estatus_verificacion;
-        
+
         if ($request->has('estatus')) {
             $negocio->estatus = $request->estatus;
         }
@@ -375,7 +378,7 @@ class NegocioController extends Controller
         $negocio = Negocio::find($request->id);
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $this->eliminarArchivo($negocio->ruta_logo);
@@ -383,7 +386,7 @@ class NegocioController extends Controller
 
         $negocio->delete();
 
-        return response()->json(['message' => 'Negocio eliminado por el administrador'], 200);
+        return response()->json(['message' => 'Proyecto eliminado por el administrador'], 200);
     }
 
     /**

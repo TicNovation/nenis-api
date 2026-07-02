@@ -25,7 +25,7 @@ class ImagenNegocioController extends Controller
         // Verificamos que el negocio pertenezca al usuario
         $negocio = Negocio::where('id', $request->id_negocio)->first();
         if (!$negocio || $negocio->id_usuario != $id_usuario) {
-            return response()->json(['message' => 'Negocio no encontrado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado'], 404);
         }
 
         $imagen_negocio = ImagenNegocio::create([
@@ -58,7 +58,7 @@ class ImagenNegocioController extends Controller
 
         // Eliminar del bucket
         $this->eliminarArchivo($imagen->ruta);
-        
+
         // Eliminar de la base de datos
         $imagen->delete();
         //Decrementar la cantidad de sucursales

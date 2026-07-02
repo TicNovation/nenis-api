@@ -27,7 +27,7 @@ class SucursalController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         $sucursales = Sucursal::where('id_negocio', $id_negocio)
@@ -43,7 +43,7 @@ class SucursalController extends Controller
     public function encontrar(Request $request, int $id, ?int $usuario_id = null)
     {
         $id_usuario = $this->obtenerUsuarioId($request, $usuario_id);
-        
+
         $sucursal = Sucursal::where('id', $id)->with(['negocio', 'estado', 'ciudad', 'horarios'])->first();
 
         if (!$sucursal || $sucursal->negocio->id_usuario != $id_usuario) {
@@ -85,7 +85,7 @@ class SucursalController extends Controller
             ->first();
 
         if (!$negocio) {
-            return response()->json(['message' => 'Negocio no encontrado o no autorizado'], 404);
+            return response()->json(['message' => 'Proyecto no encontrado o no autorizado'], 404);
         }
 
         // Si esta es la principal, cambiar las demás a no principales

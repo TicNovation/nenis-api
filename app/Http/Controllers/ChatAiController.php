@@ -33,7 +33,7 @@ class ChatAiController extends Controller
             $businessId = $data['business_id'] ?? null;
             // 1. GET USER AND PLAN DETAILED LIMITS - Manual JWT check to support public & logged users
             $user = $request->attributes->get('user'); // Fallback if middleware is ever added
-            
+
             if (!$user) {
                 try {
                     $jwt = null;
@@ -48,7 +48,7 @@ class ChatAiController extends Controller
                     if ($jwt && strlen($jwt) > 10) {
                         $jwt = preg_replace('/^Bearer\s+/i', '', $jwt);
                         $jwt = trim($jwt);
-                        
+
                         // Try as User first (clients)
                         try {
                             $decoded = \Firebase\JWT\JWT::decode($jwt, new \Firebase\JWT\Key(config('jwt.secret_usuario'), 'HS256'));
@@ -75,13 +75,14 @@ class ChatAiController extends Controller
                     Log::error("ChatAI JWT Error: " . $e->getMessage());
                 }
             }
-            
-            // Atribución de uso: Si es admin y hay business_id, contar para el dueño del negocio
+
+            // Atribución de uso: Si es admin y hay business_id, contar para el dueño del proyecto
             if (!$user && $isAdmin && $businessId) {
                 $negocio = \App\Models\Negocio::find($businessId);
                 if ($negocio) {
                     $user = \App\Models\Usuario::with('planActivo')->find($negocio->id_usuario);
-                    if ($user) Log::debug("ChatAI: Atribuyendo uso al dueño del negocio ID {$user->id} (Admin chat)");
+                    if ($user)
+                        Log::debug("ChatAI: Atribuyendo uso al dueño del proyecto ID {$user->id} (Admin chat)");
                 }
             }
 
@@ -133,7 +134,7 @@ class ChatAiController extends Controller
                 $publicRateKey = "chat_public_" . ($data['fingerprint'] ?? $request->ip());
                 if (RateLimiter::tooManyAttempts($publicRateKey, 5)) {
                     return response()->json([
-                        'reply' => "Has agotado tus 5 consultas gratuitas de hoy. ✨ **¡Crea una cuenta gratis para seguir platicando conmigo y potenciar tu negocio!**\n\nAl registrarte tendrás acceso a más consultas mensuales y herramientas de IA exclusivas.",
+                        'reply' => "Has agotado tus 5 consultas gratuitas de hoy. ✨ **¡Crea una cuenta gratis para seguir platicando conmigo y potenciar tu proyecto!**\n\nAl registrarte tendrás acceso a más consultas mensuales y herramientas de IA exclusivas.",
                         'suggestions' => [
                             ['id' => 'public.register', 'label' => '¿Cómo me registro?', 'message' => '¿Cuáles son los pasos para registrarme?'],
                             ['id' => 'public.pricing', 'label' => 'Ver planes', 'message' => '¿Qué planes tienen y cuánto cuestan?']
@@ -141,7 +142,7 @@ class ChatAiController extends Controller
                         'limit_reached' => true
                     ], 429);
                 }
-                RateLimiter::hit($publicRateKey, 86400); 
+                RateLimiter::hit($publicRateKey, 86400);
             } else {
                 // Throttling for logged users or admins: Max 10 messages per minute to prevent spam/abuse
                 $rateLimitKey = "chat_speed_" . ($user ? $user->id : $request->ip());
@@ -155,23 +156,23 @@ class ChatAiController extends Controller
             }
 
 
-             //Se implementarán lectura de comandos para acciones específicas  
-             $allowedCommands = [
+            //Se implementarán lectura de comandos para acciones específicas  
+            $allowedCommands = [
                 '__CONTACTAR_SOPORTE__',
                 '__INTENTAR_OTRA_PREGUNTA__',
                 '__IA_GENERAR_KEYWORDS__',
                 '__IA_MEJORAR_DESCRIPCION__',
-               // '__IA_SUGERIR_CATEGORIA__',
+                // '__IA_SUGERIR_CATEGORIA__',
                 //'__IA_AUDITORIA_SEO__',
                 //'__IA_GENERAR_ITEMS__',
-            ];  
+            ];
 
             // 6. HANDLE COMMANDS
             if (str_starts_with($message, '__') && str_ends_with($message, '__') && in_array($message, $allowedCommands)) {
                 $this->logToOrionia($sessionId, $message, 'input');
-                
+
                 $cmdData = $this->handleCommand($message, $user, $businessId, $planName, $planActivo);
-                
+
                 // Si el comando devuelve una respuesta especial de "bloqueo" (ej. plan insuficiente), la enviamos tal cual
                 if (isset($cmdData['status']) && $cmdData['status'] !== 200) {
                     return response()->json($cmdData, $cmdData['status']);
@@ -200,7 +201,7 @@ class ChatAiController extends Controller
             // 3. CACHING (Efficiency - Cached responses DON'T count as new consultas)
             $normalizedMessage = Str::lower(trim(preg_replace('/[^a-zA-Z0-9\s]/', '', $message)));
             $cacheKey = "ai_answer_" . md5($normalizedMessage);
-            
+
             if (!$isAdmin && Cache::has($cacheKey)) {
                 $cachedData = Cache::get($cacheKey);
                 $this->logToOrionia($sessionId, $message, 'input');
@@ -225,7 +226,7 @@ class ChatAiController extends Controller
             }
 
             $aiResponse = $this->callDeepSeek($message, $context, $isAdmin);
-            
+
             // 5. INCREMENT USAGE
             $usageData = $this->incrementUsage($user, $planActivo, $aiResponse);
             $consumedToday = $usageData['consumedToday'];
@@ -253,7 +254,7 @@ class ChatAiController extends Controller
             return response()->json(array_merge($responseData, [
                 'plan_detected' => $planName,
                 'usage' => $user ? [
-                    'current' => $consumedToday, 
+                    'current' => $consumedToday,
                     'limit' => $planActivo ? $planActivo->max_ia_consultas : 0,
                     'monthly_total' => $user->ia_consultas_mes_actual
                 ] : null
@@ -288,8 +289,8 @@ class ChatAiController extends Controller
                     'suggestions' => [
                         [
                             'id' => 'public.how_it_works',
-                            'label' => '¿Cómo funciona Nenis?',
-                            'message' => 'Explícame qué es Nenis y cómo ayuda a emprendedores. Resumen breve.'
+                            'label' => '¿Cómo funciona Proyecto Digital?',
+                            'message' => 'Explícame qué es Proyecto Digital y cómo ayuda a emprendedores. Resumen breve.'
                         ]
                     ],
                     'is_ai' => false
@@ -297,19 +298,19 @@ class ChatAiController extends Controller
 
             case '__INTENTAR_OTRA_PREGUNTA__':
                 return [
-                    'reply' => "¡Claro! Estoy aquí para ayudarte. ¿Qué más te gustaría saber sobre Nenis?\n\n"
-                        . "Puedes preguntarme sobre nuestros **planes**, cómo **registrar tu negocio**, nuestras **políticas** o cómo mejorar tu presencia en la plataforma.",
+                    'reply' => "¡Claro! Estoy aquí para ayudarte. ¿Qué más te gustaría saber sobre Proyecto Digital?\n\n"
+                        . "Puedes preguntarme sobre nuestros **planes**, cómo **registrar tu proyecto**, nuestras **políticas** o cómo mejorar tu presencia en la plataforma.",
                     'suggestions' => $this->getSuggestedChips(collect([]), false, 'basic'),
                     'is_ai' => false
                 ];
 
             case '__IA_GENERAR_KEYWORDS__':
                 if (!$user || !$businessId) {
-                    return ['reply' => "No pude identificar tu negocio. Por favor, asegúrate de estar dentro del panel de administración.", 'suggestions' => [], 'status' => 400];
+                    return ['reply' => "No pude identificar tu proyecto. Por favor, asegúrate de estar dentro del panel de administración.", 'suggestions' => [], 'status' => 400];
                 }
-                if(!$planActivo || $planActivo->incluye_ia_negocios == 0){
+                if (!$planActivo || $planActivo->incluye_ia_negocios == 0) {
                     return [
-                        'reply' => "Tu plan no incluye esta función avanzada de negocios. Revisa la sección de Suscripción para actualizar tu plan.", 
+                        'reply' => "Tu plan no incluye esta función avanzada de proyectos. Revisa la sección de Suscripción para actualizar tu plan.",
                         'suggestions' => [['id' => 'admin.upgrade_to_pro', 'label' => 'Mejorar a Pro', 'message' => '¿Qué beneficios obtengo si actualizo al plan Pro?']],
                         'status' => 403
                     ];
@@ -317,16 +318,16 @@ class ChatAiController extends Controller
 
                 $negocio = \App\Models\Negocio::where('id', $businessId)->where('id_usuario', $user->id)->first();
                 if (!$negocio) {
-                    return ['reply' => "No encontré el negocio seleccionado.", 'suggestions' => [], 'status' => 404];
+                    return ['reply' => "No encontré el proyecto seleccionado.", 'suggestions' => [], 'status' => 404];
                 }
 
-                $prompt = "Actúa como experto en SEO local para Nenis. Analiza este negocio y genera una lista de 10 a 15 keywords separadas por comas que le ayuden a posicionar mejor.\n\n"
-                        . "NEGOCIO: {$negocio->nombre}\n"
-                        . "DESCRIPCIÓN: {$negocio->descripcion}\n"
-                        . "CATEGORÍA: " . ($negocio->categoriaPrincipal->nombre ?? 'N/A') . "\n\n"
-                        . "REGLA: Devuelve solo las keywords sugeridas y una breve explicación de por qué elegiste las más importantes.";
+                $prompt = "Actúa como experto en SEO local para Proyecto Digital. Analiza este proyecto y genera una lista de 10 a 15 keywords separadas por comas que le ayuden a posicionar mejor.\n\n"
+                    . "PROYECTO: {$negocio->nombre}\n"
+                    . "DESCRIPCIÓN: {$negocio->descripcion}\n"
+                    . "CATEGORÍA: " . ($negocio->categoriaPrincipal->nombre ?? 'N/A') . "\n\n"
+                    . "REGLA: Devuelve solo las keywords sugeridas y una breve explicación de por qué elegiste las más importantes.";
 
-                $aiResp = $this->callDeepSeek($prompt, "Eres un consultor experto en SEO para negocios locales.", true);
+                $aiResp = $this->callDeepSeek($prompt, "Eres un consultor experto en SEO para proyectos locales.", true);
 
                 return [
                     'reply' => "Aquí tienes una propuesta de palabras clave optimizadas para **{$negocio->nombre}**:\n\n" . $aiResp . "\n\n¿Te gustaría que te ayude con algo más?",
@@ -336,12 +337,12 @@ class ChatAiController extends Controller
 
             case '__IA_MEJORAR_DESCRIPCION__':
                 if (!$user || !$businessId) {
-                    return ['reply' => "No pude identificar tu negocio. Por favor, asegúrate de estar dentro del panel de administración.", 'suggestions' => [], 'status' => 400];
+                    return ['reply' => "No pude identificar tu proyecto. Por favor, asegúrate de estar dentro del panel de administración.", 'suggestions' => [], 'status' => 400];
                 }
 
-                if(!$planActivo || $planActivo->incluye_ia_negocios == 0){
+                if (!$planActivo || $planActivo->incluye_ia_negocios == 0) {
                     return [
-                        'reply' => "Tu plan no incluye esta función avanzada de negocios. Revisa la sección de Suscripción para actualizar tu plan.", 
+                        'reply' => "Tu plan no incluye esta función avanzada de proyectos. Revisa la sección de Suscripción para actualizar tu plan.",
                         'suggestions' => [['id' => 'admin.upgrade_to_pro', 'label' => 'Mejorar a Pro', 'message' => '¿Qué beneficios obtengo si actualizo al plan Pro?']],
                         'status' => 403
                     ];
@@ -349,13 +350,13 @@ class ChatAiController extends Controller
 
                 $negocio = \App\Models\Negocio::where('id', $businessId)->where('id_usuario', $user->id)->first();
                 if (!$negocio) {
-                    return ['reply' => "No encontré el negocio seleccionado.", 'suggestions' => [], 'status' => 404];
+                    return ['reply' => "No encontré el proyecto seleccionado.", 'suggestions' => [], 'status' => 404];
                 }
 
-                $prompt = "Actúa como copywriter profesional. Mejora la siguiente descripción de negocio para que sea más atractiva, clara y profesional, manteniendo un tono adecuado para la plataforma Nenis.\n\n"
-                        . "NEGOCIO: {$negocio->nombre}\n"
-                        . "DESCRIPCIÓN ACTUAL: {$negocio->descripcion}\n\n"
-                        . "REGLA: Devuelve una propuesta revisada y brevemente explica los puntos que mejoraste.";
+                $prompt = "Actúa como copywriter profesional. Mejora la siguiente descripción de proyecto para que sea más atractiva, clara y profesional, manteniendo un tono adecuado para la plataforma Proyecto Digital.\n\n"
+                    . "PROYECTO: {$negocio->nombre}\n"
+                    . "DESCRIPCIÓN ACTUAL: {$negocio->descripcion}\n\n"
+                    . "REGLA: Devuelve una propuesta revisada y brevemente explica los puntos que mejoraste.";
 
                 $aiResp = $this->callDeepSeek($prompt, "Eres un redactor creativo experto en ventas y SEO.", true);
 
@@ -376,7 +377,7 @@ class ChatAiController extends Controller
     {
         $message = strtolower($message);
         $words = explode(' ', $message);
-        
+
         // Stop words removal (simplified)
         $stopWords = ['para', 'esta', 'quien', 'donde', 'como', 'forma', 'esta', 'este', 'estos', 'unas', 'unos', 'sobre', 'todo'];
         $usefulWords = array_filter($words, fn($w) => strlen($w) > 2 && !in_array($w, $stopWords));
@@ -388,18 +389,18 @@ class ChatAiController extends Controller
         // We'll calculate a simple relevance score: Title match > Keyword match > Content match
         $query = KbArticle::where('estatus', 'publicado');
 
-        $query->where(function($q) use ($usefulWords) {
+        $query->where(function ($q) use ($usefulWords) {
             foreach ($usefulWords as $word) {
                 $q->orWhere('titulo', 'LIKE', "%$word%")
-                  ->orWhere('contenido', 'LIKE', "%$word%")
-                  ->orWhere('keywords', 'LIKE', "%$word%");
+                    ->orWhere('contenido', 'LIKE', "%$word%")
+                    ->orWhere('keywords', 'LIKE', "%$word%");
             }
         });
 
         // Ordering by ID and latest articles usually gives better results for recently added guides
         return $query->orderBy('id', 'DESC')
-                     ->take(5)
-                     ->get();
+            ->take(5)
+            ->get();
     }
 
     /**
@@ -407,9 +408,10 @@ class ChatAiController extends Controller
      */
     private function preparePromptContext($articles)
     {
-        if ($articles->isEmpty()) return "No hay información específica en la base de conocimientos para esta consulta.";
+        if ($articles->isEmpty())
+            return "No hay información específica en la base de conocimientos para esta consulta.";
 
-        $context = "Información de referencia de Nenis:\n";
+        $context = "Información de referencia de Proyecto Digital:\n";
         foreach ($articles as $art) {
             $context .= "### " . $art->titulo . "\n" . $art->contenido . "\n\n";
         }
@@ -425,15 +427,15 @@ class ChatAiController extends Controller
         $apiKey = $config['key'];
         $baseUrl = rtrim($config['base_url'], '/');
 
-        $systemPrompt = "Eres 'Nenis AI', el asistente inteligente de la plataforma Nenis. 
-            Tu objetivo es ayudar a emprendedoras y negocios locales con información clara, precisa y profesional.
+        $systemPrompt = "Eres 'NED, el asistente inteligente de la plataforma Proyecto Digital (Creado por Nueva Era Digital). 
+            Tu objetivo es ayudar a proyectos locales (negocios, artistass, emprendimientos, etc) con información clara, precisa y profesional.
 
             REGLAS IMPORTANTES:
             1. Responde ÚNICAMENTE con base en la información proporcionada en el CONTEXTO.
             2. No inventes datos, precios, políticas ni características.
             3. Si el CONTEXTO no contiene la información suficiente, indica que no encontraste información en la base y sugiere contactar a soporte.
             4. Mantén un tono amable, claro y profesional.
-            5. Habla en femenino cuando te refieras a la usuaria como 'Nenis' o usa tono neutro profesional.
+            5. Habla en femenino cuando te refieras a la usuaria como 'Proyecto Digital' o usa tono neutro profesional.
             6. No menciones que eres un modelo de IA.
             7. No hagas suposiciones fuera del CONTEXTO.
 
@@ -455,14 +457,14 @@ class ChatAiController extends Controller
                 'Authorization' => "Bearer $apiKey",
                 'Content-Type' => 'application/json',
             ])->post("$baseUrl/chat/completions", [
-                'model' => 'deepseek-chat',
-                'messages' => [
-                    ['role' => 'system', 'content' => $systemPrompt],
-                    ['role' => 'user', 'content' => $message],
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => 1024
-            ]);
+                        'model' => 'deepseek-chat',
+                        'messages' => [
+                            ['role' => 'system', 'content' => $systemPrompt],
+                            ['role' => 'user', 'content' => $message],
+                        ],
+                        'temperature' => 0.7,
+                        'max_tokens' => 1024
+                    ]);
 
             if ($response->successful()) {
                 return $response->json()['choices'][0]['message']['content'];
@@ -485,8 +487,8 @@ class ChatAiController extends Controller
         try {
             // Log a single event (input or output)
             Http::withoutVerifying()->post('https://chatbot-api.orionia.com.mx/saveChat', [
-                'company_id' => '6924cd1203988', 
-                'agent_id' => '6924ce43db1a8',   
+                'company_id' => '6924cd1203988',
+                'agent_id' => '6924ce43db1a8',
                 'whatsapp' => $sessionId,
                 'message' => $content,
                 'type' => $type
@@ -505,7 +507,7 @@ class ChatAiController extends Controller
         // Usamos sección 'admin' si el usuario está logueado (Emprendedora) O es SuperAdmin
         $isLogged = ($user !== null || $isAdmin);
         $section = $isLogged ? 'admin' : 'public';
-        
+
         if ($kbArticles->isEmpty()) {
             // Return defaults if no topic detected
             if ($isLogged) {
@@ -518,19 +520,19 @@ class ChatAiController extends Controller
 
         // Get dominant category from found articles
         $category = $kbArticles->first()->categoria;
-        
+
         $chipIds = $config[$section]['by_category'][$category] ?? [];
-        
+
         // If too few chips, add some initial ones
         if (count($chipIds) < 2) {
-             if ($isLogged) {
+            if ($isLogged) {
                 $initial = $config['admin']['initial_by_plan'][$plan] ?? $config['admin']['initial_by_plan']['basic'];
-             } else {
+            } else {
                 $initial = $config['public']['initial'];
-             }
-             $chipIds = array_unique(array_merge($chipIds, $initial));
+            }
+            $chipIds = array_unique(array_merge($chipIds, $initial));
         }
-        
+
         return $this->mapIdsToChips(array_slice($chipIds, 0, 4), $isLogged);
     }
 
@@ -538,7 +540,7 @@ class ChatAiController extends Controller
     {
         $config = config('chat_suggestions');
         $catalog = $isAdmin ? $config['admin']['chips'] : $config['public']['chips'];
-        
+
         $result = [];
         foreach ($ids as $id) {
             if (isset($catalog[$id])) {
@@ -567,16 +569,16 @@ class ChatAiController extends Controller
 
             // 2. Double Increment in DB (Persists immediately to DB)
             Log::debug("ChatAI: [Consumo DB] Usuario {$user->id} | Prev Hoy: {$user->ia_consultas_hoy} | Prev Mes: {$user->ia_consultas_mes_actual}");
-            
+
             $user->increment('ia_consultas_hoy');
             $user->increment('ia_consultas_mes_actual');
-            
+
             $user->refresh(); // Load updated values from DB
             $consumedToday = $user->ia_consultas_hoy;
-            
+
             Log::debug("ChatAI: [Consumo DB] Usuario {$user->id} | Nuevo Hoy: {$consumedToday} | Nuevo Mes: {$user->ia_consultas_mes_actual}");
         }
-        
+
         return ['consumedToday' => $consumedToday];
     }
 
@@ -585,13 +587,13 @@ class ChatAiController extends Controller
      */
     private function getDynamicPlansContext()
     {
-        return Cache::remember('ai_plans_context', 3600, function() {
+        return Cache::remember('ai_plans_context', 3600, function () {
             try {
                 $planes = \App\Models\Plan::where('activo', 1)->get();
                 $text = "";
                 foreach ($planes as $p) {
                     $text .= "- PLAN {$p->nombre}: Precio $" . number_format($p->precio_mensual, 2) . " MXN/mes. ";
-                    $text .= "Incluye: {$p->max_negocios} negocios, {$p->max_items} productos, {$p->max_ia_consultas} consultas IA diarias. ";
+                    $text .= "Incluye: {$p->max_negocios} proyectos, {$p->max_items} productos, {$p->max_ia_consultas} consultas IA diarias. ";
                     $text .= "Alcance: {$p->max_alcance_visibilidad}. ";
                     $text .= $p->incluye_ia_negocios ? "Tiene herramientas IA avanzadas. " : "No tiene IA avanzada. ";
                     $text .= $p->destacado ? "Es un plan destacado. " : "";
