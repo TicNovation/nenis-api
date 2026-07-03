@@ -36,14 +36,14 @@ class Membresia extends Model
     {
         static::creating(function ($model) {
             $model->created_at = $model->freshTimestamp();
-            
+
             // Generar un folio único si no tiene uno
             if (!$model->folio) {
-                $model->folio = 'NEN-' . strtoupper(Str::random(10));
-                
+                $model->folio = 'PD-' . strtoupper(Str::random(10));
+
                 // Asegurar que sea único (extra safety)
                 while (self::where('folio', $model->folio)->exists()) {
-                    $model->folio = 'NEN-' . strtoupper(Str::random(10));
+                    $model->folio = 'PD-' . strtoupper(Str::random(10));
                 }
             }
         });
